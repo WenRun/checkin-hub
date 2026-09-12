@@ -4,7 +4,9 @@ import { api, fmtTime } from '../api.jsx';
 import { Card, Button, Badge, Modal, Field, Input, Empty } from '../components/ui.jsx';
 import { CreditsSection } from '../components/AccountCredits.jsx';
 
-function OAuthDialog({ open, onClose, onSaved }) {
+// ---------- OAuth 扫码登录弹窗 ----------
+
+function OAuthDialog({ open, onClose, onSaved, provider }) {
   const [session, setSession] = useState(null); // { loginId, verificationUri, expiresIn }
   const [status, setStatus] = useState('loading'); // loading | waiting | done | error
   const [message, setMessage] = useState('');
@@ -26,7 +28,7 @@ function OAuthDialog({ open, onClose, onSaved }) {
     stopPolling();
 
     api
-      .oauthStart()
+      .oauthStart(provider)
       .then((s) => {
         if (!alive) return;
         setSession(s);
@@ -35,7 +37,7 @@ function OAuthDialog({ open, onClose, onSaved }) {
         timerRef.current = setInterval(async () => {
           setRemain((r) => Math.max(0, r - 3));
           try {
-            const r = await api.oauthPoll(s.loginId);
+            const r = await api.oauthPoll(s.loginId, provider);
             if (!alive || !r.done) {
               if (r && r.debug) setDebugInfo(r.debug);
               return;
@@ -65,10 +67,10 @@ function OAuthDialog({ open, onClose, onSaved }) {
       alive = false;
       stopPolling();
     };
-  }, [open, onSaved]);
+  }, [open, onSaved, provider]);
 
   return (
-    <Modal open={open} onClose={onClose} title="扫码登录 WorkBuddy">
+    <Modal open={open} onClose={onClose} title={`扫码登录 · ${provider?.name || ''}`}>
       {status === 'loading' && <Empty text="正在向官方申请登录会话…" />}
       {status === 'error' && (
         <div className="space-y-3">
@@ -89,7 +91,7 @@ function OAuthDialog({ open, onClose, onSaved }) {
       {status === 'waiting' && session && (
         <div className="space-y-4">
           <ol className="space-y-2 text-sm text-zinc-300">
-            <li>1. 点击下方按钮打开 WorkBuddy 官方登录页（新标签页）</li>
+            <li>1. 点击下方按钮打开官方登录页（新标签页）</li>
             <li>2. 在登录页用手机扫码或输入账号完成登录</li>
             <li>3. 登录成功后本页会自动检测并保存账号，无需其他操作</li>
           </ol>
@@ -122,7 +124,9 @@ function OAuthDialog({ open, onClose, onSaved }) {
   );
 }
 
-function AccountFormDialog({ open, onClose, onSaved }) {
+// ---------- 手动添加账号弹窗 ----------
+
+function AccountFormDialog({ open, onClose, onSaved, provider }) {
   const [form, setForm] = useState({ access_token: '', refresh_token: '', email: '', uid: '', enterpriseId: '', domain: '' });
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -140,7 +144,7 @@ function AccountFormDialog({ open, onClose, onSaved }) {
     setSaving(true);
     setError('');
     try {
-      await api.addAccount(form);
+      await api.addAccount({ provider: provider?.id, ...form });
       onSaved();
       onClose();
     } catch (e) {
@@ -151,9 +155,9 @@ function AccountFormDialog({ open, onClose, onSaved }) {
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="添加 WorkBuddy 账号">
+    <Modal open={open} onClose={onClose} title={`添加账号 · ${provider?.name || ''}`}>
       <div className="space-y-4">
-        <Field label="access_token（必填）" hint="抓包 codebuddy.cn 请求头 Authorization Bearer 后面的值">
+        <Field label="access_token（必填）" hint="从该站点登录后的请求头 Authorization Bearer 中获取">
           <Input value={form.access_token} onChange={set('access_token')} placeholder="eyJhbGci..." />
         </Field>
         <Field label="refresh_token（建议填写）" hint="用于 token 过期后自动续期，长期保活必备">
@@ -187,7 +191,11 @@ function AccountFormDialog({ open, onClose, onSaved }) {
   );
 }
 
+// ---------- 账号管理（按平台子菜单） ----------
+
 export default function Accounts() {
+  const [providers, setProviders] = useState([]);
+  const [tab, setTab] = useState('');
   const [accounts, setAccounts] = useState([]);
   const [formOpen, setFormOpen] = useState(false);
   const [oauthOpen, setOauthOpen] = useState(false);
@@ -196,6 +204,13 @@ export default function Accounts() {
 
   const load = useCallback(() => {
     api.accounts().then(setAccounts).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    api.providers().then((ps) => {
+      setProviders(ps);
+      setTab((t) => t || ps[0]?.id || '');
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -209,10 +224,14 @@ export default function Accounts() {
     setTimeout(() => setNotice(''), 4000);
   };
 
+  const active = providers.find((p) => p.id === tab) || providers[0] || null;
+  const caps = active?.capabilities || {};
+  const siteAccounts = accounts.filter((a) => a.provider === active?.id);
+
   const importLocal = async () => {
     setBusyId('import');
     try {
-      const a = await api.importLocal();
+      const a = await api.importLocal(active.id);
       flash(`已导入本机账号: ${a.email || a.nickname || a.uid || a.id}`);
       load();
     } catch (e) {
@@ -247,22 +266,49 @@ export default function Accounts() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-end justify-between">
         <div>
           <h2 className="text-lg font-semibold text-zinc-100">账号管理</h2>
-          <p className="mt-0.5 text-sm text-zinc-500">签到任务使用的账号凭据，token 只保存在本机</p>
+          <p className="mt-0.5 text-sm text-zinc-500">按平台管理各站点的账号凭据，token 只保存在本机</p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={importLocal} disabled={busyId === 'import'}>
-            <Download size={15} /> {busyId === 'import' ? '导入中…' : '从本机导入'}
-          </Button>
-          <Button onClick={() => setOauthOpen(true)}>
-            <QrCode size={15} /> 扫码登录
-          </Button>
-          <Button variant="primary" onClick={() => setFormOpen(true)}>
-            <Plus size={15} /> 手动添加
-          </Button>
+          {caps.importLocal && (
+            <Button onClick={importLocal} disabled={busyId === 'import'}>
+              <Download size={15} /> {busyId === 'import' ? '导入中…' : '从本机导入'}
+            </Button>
+          )}
+          {caps.oauth && (
+            <Button onClick={() => setOauthOpen(true)}>
+              <QrCode size={15} /> 扫码登录
+            </Button>
+          )}
+          {caps.manual && (
+            <Button variant="primary" onClick={() => setFormOpen(true)}>
+              <Plus size={15} /> 手动添加
+            </Button>
+          )}
         </div>
+      </div>
+
+      {/* 平台子菜单 */}
+      <div className="flex flex-wrap gap-2">
+        {providers.map((p) => (
+          <button
+            key={p.id}
+            onClick={() => setTab(p.id)}
+            className={`rounded-full border px-4 py-1.5 text-sm transition-colors ${
+              p.id === active?.id
+                ? 'border-emerald-600/60 bg-emerald-600/15 font-medium text-emerald-400'
+                : 'border-line bg-panel text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'
+            }`}
+          >
+            {p.name}
+            <span className="ml-2 text-xs text-zinc-600">
+              {accounts.filter((a) => a.provider === p.id).length}
+            </span>
+          </button>
+        ))}
+        {providers.length === 0 && <span className="text-sm text-zinc-600">加载中…</span>}
       </div>
 
       {notice && (
@@ -272,8 +318,8 @@ export default function Accounts() {
       )}
 
       <Card>
-        {accounts.length === 0 ? (
-          <Empty text="还没有账号。推荐点「扫码登录」直接登录添加；本机装了 WorkBuddy 也可以「从本机导入」；或「手动添加」填入 token" />
+        {siteAccounts.length === 0 ? (
+          <Empty text={`还没有 ${active?.name || ''} 账号。${caps.oauth ? '推荐点「扫码登录」直接登录添加；' : ''}${caps.importLocal ? '本机装了客户端也可以「从本机导入」；' : ''}或「手动添加」填入 token`} />
         ) : (
           <table className="w-full text-sm">
             <thead>
@@ -286,7 +332,7 @@ export default function Accounts() {
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
-              {accounts.map((a) => (
+              {siteAccounts.map((a) => (
                 <tr key={a.id} className="hover:bg-panel-2/60">
                   <td className="px-5 py-3">
                     <div className="font-medium text-zinc-200">{a.email || a.nickname || a.uid || a.id}</div>
@@ -332,22 +378,30 @@ export default function Accounts() {
         )}
       </Card>
 
-      <div className="flex items-start gap-2 rounded-lg border border-line bg-panel px-4 py-3 text-xs text-zinc-500">
-        <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-500" />
-        <div>
-          「从本机导入」读取本机 WorkBuddy 客户端的登录凭据文件
-          （<code className="text-zinc-400">%LOCALAPPDATA%\CodeBuddyExtension\Data\Public\auth\workbuddy-desktop.info</code>），
-          需要本机已登录 WorkBuddy。手动添加则需要在浏览器登录 codebuddy.cn 后从请求头中复制 token。
-          每次任务执行前会自动检查 token 有效期，剩余不足 24 小时自动刷新。
+      {caps.importLocal && (
+        <div className="flex items-start gap-2 rounded-lg border border-line bg-panel px-4 py-3 text-xs text-zinc-500">
+          <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-500" />
+          <div>
+            「从本机导入」读取本机 WorkBuddy 客户端的登录凭据文件
+            （<code className="text-zinc-400">%LOCALAPPDATA%\CodeBuddyExtension\Data\Public\auth\workbuddy-desktop.info</code>），
+            需要本机已登录 WorkBuddy。手动添加则需要在浏览器登录 codebuddy.cn 后从请求头中复制 token。
+            每次任务执行前会自动检查 token 有效期，剩余不足 24 小时自动刷新。
+          </div>
         </div>
-      </div>
+      )}
 
-      <Card className="p-5">
-        <CreditsSection />
-      </Card>
+      {caps.credits && (
+        <Card className="p-5">
+          <CreditsSection />
+        </Card>
+      )}
 
-      <AccountFormDialog open={formOpen} onClose={() => setFormOpen(false)} onSaved={load} />
-      <OAuthDialog open={oauthOpen} onClose={() => setOauthOpen(false)} onSaved={load} />
+      {active && (
+        <>
+          <AccountFormDialog open={formOpen} onClose={() => setFormOpen(false)} onSaved={load} provider={active} />
+          <OAuthDialog open={oauthOpen} onClose={() => setOauthOpen(false)} onSaved={load} provider={active} />
+        </>
+      )}
     </div>
   );
 }

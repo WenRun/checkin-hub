@@ -246,19 +246,15 @@ app.get('/api/overview', (_req, res) => {
 });
 
 // ---------- 积分 ----------
-// 查询所有（或指定）账号的积分资源包与到期时间
+// 查询（支持积分的）账号的资源包与到期时间；不支持的站点直接跳过
 app.get('/api/credits', async (req, res) => {
-  const accounts = store
-    .loadAccounts()
-    .filter((a) => !req.query.accountId || a.id === req.query.accountId);
+  const accounts = store.loadAccounts().filter((a) => {
+    if (req.query.accountId && a.id !== req.query.accountId) return false;
+    const provider = getProvider(a.provider);
+    return provider && typeof provider.getCredits === 'function';
+  });
   const results = await Promise.all(
-    accounts.map(async (account) => {
-      const provider = getProvider(account.provider);
-      if (!provider || !provider.getCredits) {
-        return { ok: false, accountId: account.id, accountName: account.email || account.id, error: '该站点不支持积分查询' };
-      }
-      return provider.getCredits(account);
-    }),
+    accounts.map((account) => getProvider(account.provider).getCredits(account)),
   );
   res.json(results);
 });
