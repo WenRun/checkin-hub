@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshCw, Trash2, Plus, Download, AlertTriangle, QrCode, ExternalLink } from 'lucide-react';
 import { api, fmtTime } from '../api.jsx';
 import { Card, Button, Badge, Modal, Field, Input, Empty } from '../components/ui.jsx';
+import { CreditsSection } from '../components/AccountCredits.jsx';
 
 function OAuthDialog({ open, onClose, onSaved }) {
   const [session, setSession] = useState(null); // { loginId, verificationUri, expiresIn }
@@ -340,6 +341,10 @@ export default function Accounts() {
           每次任务执行前会自动检查 token 有效期，剩余不足 24 小时自动刷新。
         </div>
       </div>
+
+      <Card className="p-5">
+        <CreditsSection />
+      </Card>
 
       <AccountFormDialog open={formOpen} onClose={() => setFormOpen(false)} onSaved={load} />
       <OAuthDialog open={oauthOpen} onClose={() => setOauthOpen(false)} onSaved={load} />

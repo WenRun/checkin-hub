@@ -1,7 +1,8 @@
+// 账号积分卡片（原「积分统计」页内容，现嵌入账号管理页）
 import { useCallback, useEffect, useState } from 'react';
 import { RefreshCw, Coins, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
 import { api, fmtTime } from '../api.jsx';
-import { Card, Button, Badge, Empty } from '../components/ui.jsx';
+import { Card, Button, Badge, Empty } from './ui.jsx';
 
 function fmtAmount(n) {
   if (typeof n !== 'number') return '-';
@@ -45,7 +46,7 @@ function PackageRow({ pkg, warn }) {
   );
 }
 
-function AccountCreditsCard({ data }) {
+export function AccountCreditsCard({ data }) {
   const [expanded, setExpanded] = useState(false);
   if (!data.ok) {
     return (
@@ -124,7 +125,8 @@ function AccountCreditsCard({ data }) {
   );
 }
 
-export default function Credits() {
+// 嵌入账号管理页的积分概况区块
+export function CreditsSection() {
   const [list, setList] = useState(null);
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -149,16 +151,16 @@ export default function Credits() {
   }, [load]);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 p-6">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-zinc-100">积分统计</h2>
-          <p className="mt-0.5 text-sm text-zinc-500">
+          <h3 className="text-sm font-semibold text-zinc-100">积分概况</h3>
+          <p className="mt-0.5 text-xs text-zinc-500">
             每个账号的积分余额与积分包到期情况，7 天内到期的会标红提醒，优先用完
           </p>
         </div>
-        <Button onClick={load} disabled={refreshing}>
-          <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />
+        <Button size="sm" onClick={load} disabled={refreshing}>
+          <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
           {refreshing ? '查询中…' : '刷新'}
         </Button>
       </div>
@@ -172,7 +174,7 @@ export default function Credits() {
       {!list ? (
         <Empty text="加载中…" />
       ) : list.length === 0 ? (
-        <Empty text="还没有账号，先到「账号管理」添加" />
+        <Empty text="还没有账号" />
       ) : (
         <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
           {list.map((item) => (

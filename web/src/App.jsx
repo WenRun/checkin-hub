@@ -5,18 +5,15 @@ import {
   Users,
   ScrollText,
   CalendarClock,
-  Coins,
 } from 'lucide-react';
 import Dashboard from './pages/Dashboard.jsx';
 import Tasks from './pages/Tasks.jsx';
 import Accounts from './pages/Accounts.jsx';
 import Records from './pages/Records.jsx';
-import Credits from './pages/Credits.jsx';
 
 const NAV = [
   { id: 'dashboard', label: '总览', icon: LayoutDashboard },
   { id: 'tasks', label: '任务管理', icon: ListChecks },
-  { id: 'credits', label: '积分统计', icon: Coins },
   { id: 'accounts', label: '账号管理', icon: Users },
   { id: 'records', label: '执行记录', icon: ScrollText },
 ];
@@ -59,7 +56,6 @@ export default function App() {
       <main className="flex-1 overflow-y-auto">
         {page === 'dashboard' && <Dashboard onNavigate={setPage} />}
         {page === 'tasks' && <Tasks />}
-        {page === 'credits' && <Credits />}
         {page === 'accounts' && <Accounts />}
         {page === 'records' && <Records />}
       </main>
