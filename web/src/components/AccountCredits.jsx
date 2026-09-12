@@ -83,7 +83,10 @@ export function AccountCreditsCard({ data }) {
                 {fmtAmount(data.balance ?? data.totalRemaining)}
               </span>
             </div>
-            <div className="mt-1 text-xs text-zinc-500">积分余额 · 签到赚分，调用模型消耗</div>
+            <div className="mt-1 text-xs text-zinc-500">
+              {data.balanceLabel || '积分余额'}
+              {data.balanceLabel === '积分余额' ? ' · 签到赚分，调用模型消耗' : ''}
+            </div>
           </div>
           <span className="text-xs text-zinc-600">{fmtTime(data.updatedAt).slice(5, 16)} 更新</span>
         </div>

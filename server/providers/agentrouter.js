@@ -119,6 +119,13 @@ function tunneledRequest(pathName, { method = 'GET', headers = {}, body, timeout
       let stage = 'connecting';
       let tlsSock = null;
       let buf = Buffer.alloc(0);
+      // 向代理发送 CONNECT 隧道请求（关键：之前漏发导致永远等不到响应）
+      socket.on('connect', () => {
+        socket.write(
+          `CONNECT ${API_HOST}:443 HTTP/1.1\r\nHost: ${API_HOST}:443\r\n\r\n`,
+          'latin1',
+        );
+      });
       const fail = (message) => {
         socket.destroy();
         if (tlsSock) tlsSock.destroy();
@@ -243,6 +250,9 @@ function buildHeaders(account) {
   };
   const cookie = getStr(account, 'session_cookie');
   if (cookie) headers.Cookie = cookie;
+  // New API 新版要求会话请求附带用户 ID 头
+  const uid = getStr(account, 'uid');
+  if (uid && /^\d+$/.test(uid)) headers['New-Api-User'] = uid;
   return headers;
 }
 
@@ -260,7 +270,8 @@ function saveSession(account, resp) {
   if (cookies.length) account.session_cookie = cookies.join('; ');
   const user = (resp.json && (resp.json.data || resp.json.user)) || null;
   if (user && typeof user === 'object') {
-    if (getStr(user, 'username')) account.uid = getStr(user, 'username');
+    // New API 的 /api/user/self 需要 New-Api-User: <用户数字 ID> 请求头
+    if (user.id !== undefined && user.id !== null) account.uid = String(user.id);
     if (user.quota !== undefined) account.last_quota = user.quota;
   }
   account.refreshedAt = Date.now();
@@ -338,6 +349,7 @@ async function getCredits(account) {
     provider: account.provider ?? 'agentrouter',
     updatedAt: Date.now(),
     kind: 'balance',
+    balanceLabel: '剩余额度（quota）',
     resources: [],
   };
   try {

@@ -463,6 +463,7 @@ async function getCredits(account) {
     provider: account.provider ?? 'tokenbom',
     updatedAt: Date.now(),
     kind: 'balance',
+    balanceLabel: '积分余额',
     resources: [],
   };
   const [creditsRes, statusRes] = await Promise.all([
