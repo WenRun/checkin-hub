@@ -3,7 +3,7 @@ import { api, fmtTime, ResultBadge } from '../api.jsx';
 import { Card, Select, Empty } from '../components/ui.jsx';
 
 export default function Records() {
-  const [records, setRecords] = useState([]);
+  const [records, setRecords] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [taskId, setTaskId] = useState('');
   const [result, setResult] = useState('');
@@ -48,7 +48,9 @@ export default function Records() {
       </div>
 
       <Card>
-        {records.length === 0 ? (
+        {records === null ? (
+          <Empty text="加载中…" />
+        ) : records.length === 0 ? (
           <Empty text="暂无执行记录" />
         ) : (
           <table className="w-full text-sm">
