@@ -71,6 +71,19 @@ WantedBy=multi-user.target
 - token 刷新：`POST /v2/plugin/auth/token/refresh`，请求头 `X-Refresh-Token`
 - 请求头对齐官方客户端：`Authorization`、`X-User-Id`、`X-Enterprise-Id` / `X-Tenant-Id`、`X-Domain`
 
+## 已内置平台
+
+### WorkBuddy（腾讯 AI 编程助手）
+
+签到接口与 token 保活逻辑移植自 [changexbc/workbuddy-switch](https://github.com/changexbc/workbuddy-switch)。
+
+### TokenBom（tokenbom.com 积分市场）
+
+- 每日签到送积分，支持连签/补签卡；**前置自动调用**：签到日要求"当天先有一次成功 API 调用"时，自动用虚拟 Key（`sk-sub-`，OpenAI 兼容网关 `https://tokenbom.com/v1`）发一次 `max_tokens=1` 的最小调用
+- **自动补签**：发现漏签且账号有补签卡时自动补
+- **token 自动恢复**：refreshToken 为一次性轮换制；失效后若账号配置了邮箱/密码（登录接口无验证码，多次失败才会升级滑块验证），系统自动账密重登录恢复，无需人工
+- 账号添加：浏览器登录后 F12 → Local Storage 复制 accessToken/refreshToken；建议同时配置邮箱+密码作为失效兜底。谷歌登录的账号需先在平台设置中设置密码
+
 ## 接入新站点
 
 在 `server/providers/` 下新建文件并导出以下接口，然后在 `server/providers/index.js` 注册即可：
@@ -81,14 +94,21 @@ module.exports = {
   name: '某站点',
   siteUrl: 'https://example.com',
   displayName: (account) => account.email,
-  async checkin(account) {
-    // 执行签到，返回 { result: 'success'|'already'|'error', message? }
+  // 可选：声明手动添加表单字段（前端动态渲染）
+  manualFields: [{ key: 'access_token', label: 'Token', required: true, hint: '...' }],
+  async checkin(account, options) {
+    // 执行签到（options 为任务的 providerOptions）
+    // 返回 { result: 'success'|'already'|'skipped'|'error', message? }
   },
   async refreshToken(account) {
     // 刷新 token 并落盘（store.upsertAccount），失败时标记 needs_relogin
   },
+  // 可选：积分查询，返回 { ok, kind: 'packages'|'balance', ... }
+  // async getCredits(account) {},
 };
 ```
+
+注册后无需改前端：账号管理自动出现该平台子菜单与表单，任务创建的站点下拉自动包含。
 
 ## 目录结构
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { RefreshCw, Trash2, Plus, Download, AlertTriangle, QrCode, ExternalLink } from 'lucide-react';
+import { RefreshCw, Trash2, Plus, Download, AlertTriangle, QrCode, ExternalLink, Pencil } from 'lucide-react';
 import { api, fmtTime } from '../api.jsx';
 import { Card, Button, Badge, Modal, Field, Input, Empty } from '../components/ui.jsx';
 import { CreditsSection } from '../components/AccountCredits.jsx';
@@ -126,28 +126,40 @@ function OAuthDialog({ open, onClose, onSaved, provider }) {
 
 // ---------- 手动添加账号弹窗（字段由 provider 的 manualFields 动态渲染） ----------
 
-const SECRET_HINTS = ['token', 'key'];
+const SECRET_HINTS = ['token', 'key', 'password'];
 
-function AccountFormDialog({ open, onClose, onSaved, provider }) {
+function AccountFormDialog({ open, onClose, onSaved, provider, editing }) {
   const fields = provider?.manualFields || [];
   const [form, setForm] = useState({});
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (open) {
+    if (!open) return;
+    setError('');
+    if (editing) {
+      // 编辑模式：只回填非敏感字段，凭据留空表示保持不变
+      const next = {};
+      for (const f of fields) {
+        if (!SECRET_HINTS.some((s) => f.key.toLowerCase().includes(s))) {
+          next[f.key] = editing[f.key] || '';
+        }
+      }
+      setForm(next);
+    } else {
       setForm({});
-      setError('');
     }
-  }, [open]);
+  }, [open, editing, fields]);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const isSecret = (key) => SECRET_HINTS.some((s) => key.toLowerCase().includes(s));
 
   const submit = async () => {
     setSaving(true);
     setError('');
     try {
-      await api.addAccount({ provider: provider?.id, ...form });
+      if (editing) await api.updateAccount(editing.id, form);
+      else await api.addAccount({ provider: provider?.id, ...form });
       onSaved();
       onClose();
     } catch (e) {
@@ -158,17 +170,33 @@ function AccountFormDialog({ open, onClose, onSaved, provider }) {
   };
 
   return (
-    <Modal open={open} onClose={onClose} title={`添加账号 · ${provider?.name || ''}`}>
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={`${editing ? '更新凭据' : '添加账号'} · ${provider?.name || ''}`}
+    >
       <div className="space-y-4">
         {fields.length === 0 && <Empty text="该平台暂未配置账号表单" />}
+        {editing && (
+          <div className="rounded-lg border border-line bg-panel-2 px-3 py-2 text-xs text-zinc-500">
+            凭据字段留空表示保持不变。
+            {editing.needs_relogin && (
+              <span className="ml-1 text-amber-400">该账号当前标记为「需重新登录」，更新 token 或补齐邮箱/密码后即可恢复。</span>
+            )}
+          </div>
+        )}
         {fields.map((f) => (
-          <Field key={f.key} label={f.label} hint={f.hint}>
+          <Field
+            key={f.key}
+            label={editing && isSecret(f.key) ? `${f.label}（留空保持不变）` : f.label}
+            hint={f.hint}
+          >
             <Input
               value={form[f.key] || ''}
               onChange={set(f.key)}
-              placeholder={f.placeholder || ''}
-              required={f.required}
-              type={SECRET_HINTS.some((s) => f.key.toLowerCase().includes(s)) ? 'password' : 'text'}
+              placeholder={editing && isSecret(f.key) ? '留空保持不变' : f.placeholder || ''}
+              required={!editing && f.required}
+              type={isSecret(f.key) ? 'password' : 'text'}
             />
           </Field>
         ))}
@@ -191,6 +219,7 @@ export default function Accounts() {
   const [tab, setTab] = useState('');
   const [accounts, setAccounts] = useState([]);
   const [formOpen, setFormOpen] = useState(false);
+  const [editingAccount, setEditingAccount] = useState(null);
   const [oauthOpen, setOauthOpen] = useState(false);
   const [notice, setNotice] = useState('');
   const [busyId, setBusyId] = useState(null);
@@ -276,7 +305,7 @@ export default function Accounts() {
             </Button>
           )}
           {caps.manual && (
-            <Button variant="primary" onClick={() => setFormOpen(true)}>
+            <Button variant="primary" onClick={() => { setEditingAccount(null); setFormOpen(true); }}>
               <Plus size={15} /> 手动添加
             </Button>
           )}
@@ -344,6 +373,14 @@ export default function Accounts() {
                       <Button
                         size="sm"
                         variant="ghost"
+                        title="更新凭据"
+                        onClick={() => { setEditingAccount(a); setFormOpen(true); }}
+                      >
+                        <Pencil size={14} />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
                         title="刷新 token"
                         disabled={busyId === a.id}
                         onClick={() => refreshToken(a)}
@@ -391,7 +428,13 @@ export default function Accounts() {
 
       {active && (
         <>
-          <AccountFormDialog open={formOpen} onClose={() => setFormOpen(false)} onSaved={load} provider={active} />
+          <AccountFormDialog
+            open={formOpen}
+            onClose={() => { setFormOpen(false); setEditingAccount(null); }}
+            onSaved={load}
+            provider={active}
+            editing={editingAccount}
+          />
           <OAuthDialog open={oauthOpen} onClose={() => setOauthOpen(false)} onSaved={load} provider={active} />
         </>
       )}

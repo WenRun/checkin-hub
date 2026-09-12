@@ -115,13 +115,55 @@ function extractError(resp) {
 
 // ---------- token 刷新（轮换制：响应中的双 token 必须立即落盘） ----------
 
+// 账密登录：无需验证码（滑块/Turnstile 仅在多次失败后升级触发）
+async function relogin(account) {
+  const email = getStr(account, 'email');
+  const password = getStr(account, 'password');
+  if (!email || !password) {
+    account.needs_relogin = true;
+    account.needs_relogin_reason = '未配置邮箱/密码，无法自动重新登录';
+    store.upsertAccount(account);
+    return account;
+  }
+  const resp = await httpRequest(`${API_BASE}/auth/login`, {
+    method: 'POST',
+    body: { email, password },
+  });
+  const data = unwrap(resp);
+  const newAccess = getStr(data, 'accessToken') || getStr(data, 'access_token');
+  if (!isSuccess(resp) || !newAccess) {
+    account.needs_relogin = true;
+    account.needs_relogin_reason = `自动重新登录失败: ${extractError(resp)}`;
+    store.upsertAccount(account);
+    return account;
+  }
+  account.access_token = newAccess;
+  const newRt = getStr(data, 'refreshToken') || getStr(data, 'refresh_token');
+  if (newRt) account.refresh_token = newRt;
+  const user = data.user && typeof data.user === 'object' ? data.user : null;
+  if (user) {
+    if (getStr(user, 'email')) account.email = getStr(user, 'email');
+    if (getStr(user, 'nickname') || getStr(user, 'name')) {
+      account.nickname = getStr(user, 'nickname') || getStr(user, 'name');
+    }
+  }
+  account.refreshedAt = Date.now();
+  delete account.needs_relogin;
+  delete account.needs_relogin_reason;
+  store.upsertAccount(account);
+  return account;
+}
+
 async function refreshToken(account) {
   const rt = getStr(account, 'refresh_token');
   if (!rt) {
-    account.needs_relogin = true;
-    account.needs_relogin_reason = '缺少 refreshToken，无法刷新，需重新登录获取';
-    store.upsertAccount(account);
-    return account;
+    if (!(getStr(account, 'email') && getStr(account, 'password'))) {
+      account.needs_relogin = true;
+      account.needs_relogin_reason = '缺少 refreshToken 且未配置邮箱/密码，无法恢复，需重新添加账号';
+      store.upsertAccount(account);
+      return account;
+    }
+    return relogin(account);
   }
   const resp = await httpRequest(`${API_BASE}/auth/refresh`, {
     method: 'POST',
@@ -130,6 +172,10 @@ async function refreshToken(account) {
   const data = unwrap(resp);
   const newAccess = getStr(data, 'accessToken') || getStr(data, 'access_token');
   if (!isSuccess(resp) || !newAccess) {
+    // 轮换 token 已失效（如被浏览器轮换掉）：配置了账密则自动重登录兜底
+    if (getStr(account, 'email') && getStr(account, 'password')) {
+      return relogin(account);
+    }
     account.needs_relogin = true;
     account.needs_relogin_reason = `刷新失败: ${extractError(resp)}`;
     store.upsertAccount(account);
@@ -145,7 +191,7 @@ async function refreshToken(account) {
   return account;
 }
 
-// 带鉴权请求：401 时刷新一次并重试
+// 带鉴权请求：401 时先刷新 token，失败且配置了账密则自动重登录，各自重试一次
 async function authedRequest(account, pathName, { method = 'GET', body } = {}) {
   let acc = account;
   let resp = await httpRequest(`${API_BASE}${pathName}`, {
@@ -154,7 +200,10 @@ async function authedRequest(account, pathName, { method = 'GET', body } = {}) {
     headers: buildAuthHeaders(acc),
   });
   resp.httpStatus = Number(resp && resp.httpStatus) || (isSuccess(resp) ? 200 : 0);
-  if (isUnauthorized(resp) && getStr(acc, 'refresh_token')) {
+  const canRecover =
+    !!getStr(acc, 'refresh_token') ||
+    (!!getStr(acc, 'email') && !!getStr(acc, 'password'));
+  if (isUnauthorized(resp) && canRecover) {
     acc = await refreshToken({ ...acc });
     resp = await httpRequest(`${API_BASE}${pathName}`, {
       method,
@@ -365,9 +414,23 @@ const manualFields = [
   },
   {
     key: 'refresh_token',
-    label: 'refreshToken（必填）',
-    required: true,
-    hint: '同位置复制 refreshToken。注意轮换制：导入后建议浏览器端退出登录，避免互踢',
+    label: 'refreshToken（建议填写）',
+    required: false,
+    hint: '同位置复制 refreshToken。轮换制失效后若已配置邮箱/密码会自动重新登录',
+    placeholder: '',
+  },
+  {
+    key: 'email',
+    label: '邮箱（同时用于自动重新登录）',
+    required: false,
+    hint: '配置邮箱+密码后，token 失效时系统会用账密自动重新登录恢复',
+    placeholder: 'you@example.com',
+  },
+  {
+    key: 'password',
+    label: '密码（用于自动重新登录）',
+    required: false,
+    hint: '明文保存在本地 data 目录（私有部署可接受）。谷歌注册的账号需先在平台设置中设置密码',
     placeholder: '',
   },
   {
@@ -376,11 +439,6 @@ const manualFields = [
     required: false,
     hint: 'sk-sub- 开头，平台「虚拟 Key」页创建。签到日要求先调用 API 时自动使用',
     placeholder: 'sk-sub-...',
-  },
-  {
-    key: 'email',
-    label: '邮箱（选填，用于展示）',
-    required: false,
   },
 ];
 

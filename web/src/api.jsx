@@ -14,6 +14,7 @@ export const api = {
   providers: () => request('/api/providers'),
   accounts: () => request('/api/accounts'),
   addAccount: (body) => request('/api/accounts', { method: 'POST', body }),
+  updateAccount: (id, body) => request(`/api/accounts/${id}`, { method: 'PUT', body }),
   importLocal: (provider = 'workbuddy') =>
     request('/api/accounts/import-local', { method: 'POST', body: { provider } }),
   refreshAccount: (id) => request(`/api/accounts/${id}/refresh`, { method: 'POST' }),

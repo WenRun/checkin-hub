@@ -71,6 +71,26 @@ app.post('/api/accounts/import-local', async (req, res) => {
   }
 });
 
+// 更新已有账号的凭据/展示字段：空值 = 保持不变（token 类字段留空即不改）
+app.put('/api/accounts/:id', (req, res) => {
+  const account = store.findAccount(req.params.id);
+  if (!account) return res.status(404).json({ error: '账号不存在' });
+  const provider = getProvider(account.provider);
+  if (!provider) return res.status(400).json({ error: '未知的站点类型' });
+  for (const f of provider.manualFields || []) {
+    const v = req.body?.[f.key];
+    if (v === undefined || String(v).trim() === '') continue;
+    account[f.key] = String(v).trim();
+    // 凭据更新后清除重登录标记
+    if (f.key === 'access_token' || f.key === 'refresh_token' || f.key === 'password') {
+      delete account.needs_relogin;
+      delete account.needs_relogin_reason;
+    }
+  }
+  store.upsertAccount(account);
+  res.json(store.accountMeta(account));
+});
+
 app.post('/api/accounts/:id/refresh', async (req, res) => {
   const account = store.findAccount(req.params.id);
   if (!account) return res.status(404).json({ error: '账号不存在' });

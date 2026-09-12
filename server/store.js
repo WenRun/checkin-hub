@@ -61,13 +61,14 @@ function deleteAccount(id) {
   return true;
 }
 
-// 账号展示信息（绝不返回 token 字段）
+// 账号展示信息（绝不返回 token / 密码字段）
 function accountMeta(account) {
   const {
     access_token,
     refresh_token,
     virtual_key,
     device_id,
+    password,
     auth_raw,
     profile_raw,
     ...meta
