@@ -1,6 +1,9 @@
 services:
   checkin-hub:
-    build: .
+    # 方式一（推荐）：拉取 GitHub Actions 自动构建的镜像（push 到 main 后自动更新）
+    image: ghcr.io/wenrun/checkin-hub:latest
+    # 方式二：在 NAS 上本地构建（注释掉上面的 image 行，取消下面注释）
+    # build: .
     container_name: checkin-hub
     restart: unless-stopped
     ports:
