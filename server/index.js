@@ -111,6 +111,37 @@ app.delete('/api/accounts/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------- 滑块验证人工恢复登录 ----------
+app.get('/api/accounts/:id/captcha', async (req, res) => {
+  const account = store.findAccount(req.params.id);
+  if (!account) return res.status(404).json({ error: '账号不存在' });
+  const provider = getProvider(account.provider);
+  if (!provider || !provider.captchaStart) {
+    return res.status(400).json({ error: '该平台不支持滑块恢复' });
+  }
+  try {
+    res.json(await provider.captchaStart(account));
+  } catch (e) {
+    res.status(502).json({ error: e.message });
+  }
+});
+
+app.post('/api/accounts/:id/relogin', async (req, res) => {
+  const account = store.findAccount(req.params.id);
+  if (!account) return res.status(404).json({ error: '账号不存在' });
+  const provider = getProvider(account.provider);
+  if (!provider || !provider.reloginWithCaptcha) {
+    return res.status(400).json({ error: '该平台不支持滑块恢复' });
+  }
+  try {
+    const result = await provider.reloginWithCaptcha(account, req.body || {});
+    if (!result.ok) return res.status(400).json({ error: result.error });
+    res.json(store.accountMeta(store.findAccount(account.id)));
+  } catch (e) {
+    res.status(502).json({ error: e.message });
+  }
+});
+
 // ---------- OAuth 扫码登录 ----------
 app.post('/api/oauth/start', async (req, res) => {
   const provider = getProvider(req.body?.provider || 'workbuddy');

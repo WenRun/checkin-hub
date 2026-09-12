@@ -133,7 +133,13 @@ async function relogin(account) {
   const newAccess = getStr(data, 'accessToken') || getStr(data, 'access_token');
   if (!isSuccess(resp) || !newAccess) {
     account.needs_relogin = true;
-    account.needs_relogin_reason = `自动重新登录失败: ${extractError(resp)}`;
+    if (resp.requireCaptcha || /验证码/.test(String(resp.error?.message || resp.message || resp.error || ''))) {
+      // 触发滑块验证：自动通道关闭，需在账号管理里拖动滑块人工恢复一次
+      account.needs_captcha = true;
+      account.needs_relogin_reason = '登录触发滑块验证，请到账号管理点击「恢复登录」拖动滑块完成';
+    } else {
+      account.needs_relogin_reason = `自动重新登录失败: ${extractError(resp)}`;
+    }
     store.upsertAccount(account);
     return account;
   }
@@ -191,7 +197,8 @@ async function refreshToken(account) {
   return account;
 }
 
-// 带鉴权请求：401 时先刷新 token，失败且配置了账密则自动重登录，各自重试一次
+// 带鉴权请求：401 时先刷新 token，失败且配置了账密则自动重登录，各自重试一次。
+// 已标记 needs_relogin 的账号不再自动尝试，避免反复失败触发更严风控；走滑块人工恢复。
 async function authedRequest(account, pathName, { method = 'GET', body } = {}) {
   let acc = account;
   let resp = await httpRequest(`${API_BASE}${pathName}`, {
@@ -201,8 +208,9 @@ async function authedRequest(account, pathName, { method = 'GET', body } = {}) {
   });
   resp.httpStatus = Number(resp && resp.httpStatus) || (isSuccess(resp) ? 200 : 0);
   const canRecover =
-    !!getStr(acc, 'refresh_token') ||
-    (!!getStr(acc, 'email') && !!getStr(acc, 'password'));
+    !acc.needs_relogin &&
+    (!!getStr(acc, 'refresh_token') ||
+      (!!getStr(acc, 'email') && !!getStr(acc, 'password')));
   if (isUnauthorized(resp) && canRecover) {
     acc = await refreshToken({ ...acc });
     resp = await httpRequest(`${API_BASE}${pathName}`, {
@@ -213,6 +221,73 @@ async function authedRequest(account, pathName, { method = 'GET', body } = {}) {
     resp.httpStatus = Number(resp && resp.httpStatus) || (isSuccess(resp) ? 200 : 0);
   }
   return { resp, account: acc };
+}
+
+// ---------- 滑块验证人工恢复 ----------
+// 登录触发滑块验证时，前端渲染滑块（数据来自 captchaStart），用户拖动后提交。
+
+// 获取滑块验证码数据（绑定期望的请求指纹）
+async function captchaStart(account) {
+  const resp = await httpRequest(`${API_BASE}/auth/captcha?fallback=slider`, {
+    headers: buildAuthHeaders(account),
+  });
+  if (resp.kind !== 'slider' || !resp.captchaId) {
+    // 默认是 Turnstile（需要浏览器环境），只有 fallback 滑块可在我们网页里渲染
+    return { ok: false, error: '验证码类型不支持（turnstile），请稍后重试' };
+  }
+  return {
+    ok: true,
+    payload: {
+      captchaId: resp.captchaId,
+      bgSvg: resp.bgSvg,
+      pieceSvg: resp.pieceSvg,
+      pieceY: resp.pieceY,
+      panelWidth: resp.panelWidth,
+      panelHeight: resp.panelHeight,
+      pieceWidth: resp.pieceWidth,
+      expiresIn: resp.expiresIn,
+    },
+  };
+}
+
+// 带滑块验证码重新登录：captcha 由前端滑块组件产生
+async function reloginWithCaptcha(account, { captchaId, captchaX, captchaElapsedMs } = {}) {
+  const email = getStr(account, 'email');
+  const password = getStr(account, 'password');
+  if (!email || !password) return { ok: false, error: '未配置邮箱/密码' };
+  if (!captchaId || captchaX === undefined) return { ok: false, error: '缺少滑块验证数据' };
+  const resp = await httpRequest(`${API_BASE}/auth/login`, {
+    method: 'POST',
+    headers: buildAuthHeaders(account),
+    body: {
+      email,
+      password,
+      captchaId,
+      captchaX,
+      captchaElapsedMs: captchaElapsedMs || 1500,
+    },
+  });
+  const data = unwrap(resp);
+  const newAccess = getStr(data, 'accessToken') || getStr(data, 'access_token');
+  if (!isSuccess(resp) || !newAccess) {
+    return { ok: false, error: extractError(resp) };
+  }
+  account.access_token = newAccess;
+  const newRt = getStr(data, 'refreshToken') || getStr(data, 'refresh_token');
+  if (newRt) account.refresh_token = newRt;
+  const user = data.user && typeof data.user === 'object' ? data.user : null;
+  if (user) {
+    if (getStr(user, 'email')) account.email = getStr(user, 'email');
+    if (getStr(user, 'nickname') || getStr(user, 'name')) {
+      account.nickname = getStr(user, 'nickname') || getStr(user, 'name');
+    }
+  }
+  account.refreshedAt = Date.now();
+  delete account.needs_relogin;
+  delete account.needs_captcha;
+  delete account.needs_relogin_reason;
+  store.upsertAccount(account);
+  return { ok: true };
 }
 
 // ---------- 自动调用（满足 requiresCall） ----------
@@ -316,7 +391,12 @@ async function checkin(account, options = {}) {
 
   const { resp: statusResp } = await authedRequest(account, '/checkin/status');
   if (isUnauthorized(statusResp)) {
-    return { result: 'error', message: `查询签到状态失败（token 失效）: ${extractError(statusResp)}` };
+    return {
+      result: 'error',
+      message:
+        `查询签到状态失败（token 失效）: ${extractError(statusResp)}` +
+        (account.needs_relogin ? '；请到「账号管理」点击「恢复登录」' : ''),
+    };
   }
   const status = unwrap(statusResp) || {};
   if (status.enabled === false) {
@@ -449,6 +529,8 @@ module.exports = {
   displayName,
   checkin,
   refreshToken,
+  reloginWithCaptcha,
+  captchaStart,
   getCredits,
   manualFields,
   buildAuthHeaders,

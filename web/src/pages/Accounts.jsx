@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { RefreshCw, Trash2, Plus, Download, AlertTriangle, QrCode, ExternalLink, Pencil } from 'lucide-react';
+import { RefreshCw, Trash2, Plus, Download, AlertTriangle, QrCode, ExternalLink, Pencil, KeyRound } from 'lucide-react';
 import { api, fmtTime } from '../api.jsx';
 import { Card, Button, Badge, Modal, Field, Input, Empty } from '../components/ui.jsx';
 import { CreditsSection } from '../components/AccountCredits.jsx';
@@ -212,6 +212,148 @@ function AccountFormDialog({ open, onClose, onSaved, provider, editing }) {
   );
 }
 
+// ---------- 滑块验证恢复登录弹窗 ----------
+
+function RecoveryDialog({ open, onClose, onSaved, account }) {
+  const [payload, setPayload] = useState(null); // {captchaId, bgSvg, pieceSvg, pieceY, panelWidth, panelHeight, pieceWidth}
+  const [error, setError] = useState('');
+  const [status, setStatus] = useState('loading'); // loading | solving | success
+  const [offsetX, setOffsetX] = useState(0);
+  const [solved, setSolved] = useState(false);
+  const dragRef = useRef({ active: false, startX: 0, baseX: 0, startedAt: 0 });
+  const [busy, setBusy] = useState(false);
+
+  const loadCaptcha = useCallback(async () => {
+    setStatus('loading');
+    setError('');
+    setOffsetX(0);
+    setSolved(false);
+    try {
+      const data = await api.accountCaptcha(account.id);
+      if (!data.ok) throw new Error(data.error || '验证码获取失败');
+      setPayload(data.payload);
+      setStatus('solving');
+    } catch (e) {
+      setError(e.message);
+    }
+  }, [account?.id]);
+
+  useEffect(() => {
+    if (open && account) loadCaptcha();
+  }, [open, account, loadCaptcha]);
+
+  if (!account) return null;
+  const maxX = payload ? payload.panelWidth - payload.pieceWidth : 240;
+
+  const onPointerDown = (e) => {
+    if (solved || busy) return;
+    dragRef.current = { active: true, startX: e.clientX, baseX: offsetX, startedAt: Date.now() };
+    e.target.setPointerCapture?.(e.pointerId);
+  };
+  const onPointerMove = (e) => {
+    if (!dragRef.current.active) return;
+    const next = Math.min(maxX, Math.max(0, dragRef.current.baseX + e.clientX - dragRef.current.startX));
+    setOffsetX(next);
+  };
+  const onPointerUp = async () => {
+    if (!dragRef.current.active || solved || busy) return;
+    dragRef.current.active = false;
+    const elapsed = Date.now() - dragRef.current.startedAt;
+    setBusy(true);
+    try {
+      await api.accountRelogin(account.id, {
+        captchaId: payload.captchaId,
+        captchaX: Math.round(offsetX),
+        captchaElapsedMs: elapsed,
+      });
+      setSolved(true);
+      setStatus('success');
+      onSaved();
+    } catch (e2) {
+      setError(`${e2.message}（已自动更换验证码，请重试）`);
+      loadCaptcha();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} title={`恢复登录 · ${account.email || account.nickname || ''}`}>
+      {status === 'loading' && <Empty text="正在获取滑块验证码…" />}
+      {status === 'error' && (
+        <div className="space-y-3">
+          <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">{error}</div>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={loadCaptcha}>重试</Button>
+            <Button variant="primary" onClick={onClose}>关闭</Button>
+          </div>
+        </div>
+      )}
+      {status === 'solving' && payload && (
+        <div className="space-y-3">
+          <p className="text-sm text-zinc-300">
+            拖动滑块，把拼图块对齐到背景图的缺口位置，松手后自动完成登录恢复。
+          </p>
+          <div
+            className="relative mx-auto overflow-hidden rounded-lg border border-line"
+            style={{ width: payload.panelWidth, height: payload.panelHeight }}
+          >
+            <div dangerouslySetInnerHTML={{ __html: payload.bgSvg }} />
+            <div
+              className="absolute"
+              style={{
+                transform: `translateX(${offsetX}px)`,
+                top: payload.pieceY - 2,
+                left: -2,
+                width: payload.pieceWidth + 4,
+                height: payload.pieceWidth + 4,
+              }}
+              dangerouslySetInnerHTML={{ __html: payload.pieceSvg }}
+            />
+          </div>
+          <div
+            className={`relative mx-auto flex h-10 items-center rounded-full border px-2 ${
+              solved ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-line bg-panel-2'
+            }`}
+            style={{ width: payload.panelWidth }}
+          >
+            {!solved && (
+              <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs text-zinc-500">
+                {busy ? '验证中…' : '拖动滑块完成拼图'}
+              </span>
+            )}
+            {solved && (
+              <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs text-emerald-400">
+                验证通过，登录已恢复
+              </span>
+            )}
+            <div
+              role="slider"
+              aria-valuenow={Math.round(offsetX)}
+              tabIndex={0}
+              onPointerDown={onPointerDown}
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
+              className={`flex h-8 w-8 cursor-grab items-center justify-center rounded-full bg-emerald-600 text-white shadow ${solved ? 'opacity-60' : 'active:cursor-grabbing'}`}
+              style={{ transform: `translateX(${offsetX}px)` }}
+            >
+              <KeyRound size={14} />
+            </div>
+          </div>
+          {error && !solved && (
+            <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">{error}</div>
+          )}
+          {status === 'success' && (
+            <div className="flex justify-end">
+              <Button variant="primary" onClick={onClose}>完成</Button>
+            </div>
+          )}
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 // ---------- 账号管理（按平台子菜单） ----------
 
 export default function Accounts() {
@@ -221,6 +363,7 @@ export default function Accounts() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState(null);
   const [oauthOpen, setOauthOpen] = useState(false);
+  const [recoveryAccount, setRecoveryAccount] = useState(null);
   const [notice, setNotice] = useState('');
   const [busyId, setBusyId] = useState(null);
 
@@ -370,6 +513,16 @@ export default function Accounts() {
                   <td className="px-3 py-3 text-xs text-zinc-400">{fmtTime(a.refreshedAt)}</td>
                   <td className="px-5 py-3">
                     <div className="flex items-center justify-end gap-1">
+                      {a.needs_relogin && caps.relogin && (
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          title="恢复登录（拖动滑块验证）"
+                          onClick={() => setRecoveryAccount(a)}
+                        >
+                          <KeyRound size={14} /> 恢复登录
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         variant="ghost"
@@ -436,6 +589,12 @@ export default function Accounts() {
             editing={editingAccount}
           />
           <OAuthDialog open={oauthOpen} onClose={() => setOauthOpen(false)} onSaved={load} provider={active} />
+          <RecoveryDialog
+            open={!!recoveryAccount}
+            onClose={() => setRecoveryAccount(null)}
+            onSaved={load}
+            account={recoveryAccount}
+          />
         </>
       )}
     </div>

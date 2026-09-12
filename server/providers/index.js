@@ -27,6 +27,7 @@ function listProviders() {
       importLocal: typeof p.importLocal === 'function',
       manual: true,
       credits: typeof p.getCredits === 'function',
+      relogin: typeof p.reloginWithCaptcha === 'function',
     },
   }));
 }
