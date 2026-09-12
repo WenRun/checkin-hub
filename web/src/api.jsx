@@ -18,6 +18,10 @@ export const api = {
     request('/api/accounts/import-local', { method: 'POST', body: { provider } }),
   refreshAccount: (id) => request(`/api/accounts/${id}/refresh`, { method: 'POST' }),
   deleteAccount: (id) => request(`/api/accounts/${id}`, { method: 'DELETE' }),
+  oauthStart: (provider = 'workbuddy') =>
+    request('/api/oauth/start', { method: 'POST', body: { provider } }),
+  oauthPoll: (loginId, provider = 'workbuddy') =>
+    request(`/api/oauth/poll/${loginId}?provider=${provider}`),
 
   tasks: () => request('/api/tasks'),
   addTask: (body) => request('/api/tasks', { method: 'POST', body }),

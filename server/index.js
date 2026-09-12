@@ -81,6 +81,31 @@ app.delete('/api/accounts/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------- OAuth 扫码登录 ----------
+app.post('/api/oauth/start', async (req, res) => {
+  const provider = getProvider(req.body?.provider || 'workbuddy');
+  if (!provider || !provider.oauthStart) {
+    return res.status(400).json({ error: '该站点不支持扫码登录' });
+  }
+  try {
+    res.json(await provider.oauthStart());
+  } catch (e) {
+    res.status(502).json({ error: e.message });
+  }
+});
+
+app.get('/api/oauth/poll/:loginId', async (req, res) => {
+  const provider = getProvider(req.query.provider || 'workbuddy');
+  if (!provider || !provider.oauthPoll) {
+    return res.status(400).json({ error: '该站点不支持扫码登录' });
+  }
+  try {
+    res.json(await provider.oauthPoll(req.params.loginId));
+  } catch (e) {
+    res.json({ done: true, error: e.message });
+  }
+});
+
 // ---------- 任务 ----------
 function validateSchedule(schedule) {
   const s = schedule || {};

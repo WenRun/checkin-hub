@@ -1,7 +1,113 @@
-import { useCallback, useEffect, useState } from 'react';
-import { RefreshCw, Trash2, Plus, Download, AlertTriangle } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { RefreshCw, Trash2, Plus, Download, AlertTriangle, QrCode, ExternalLink } from 'lucide-react';
 import { api, fmtTime } from '../api.jsx';
 import { Card, Button, Badge, Modal, Field, Input, Empty } from '../components/ui.jsx';
+
+function OAuthDialog({ open, onClose, onSaved }) {
+  const [session, setSession] = useState(null); // { loginId, verificationUri, expiresIn }
+  const [status, setStatus] = useState('loading'); // loading | waiting | done | error
+  const [message, setMessage] = useState('');
+  const [remain, setRemain] = useState(0);
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    setStatus('loading');
+    setMessage('');
+    setSession(null);
+
+    const stopPolling = () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = null;
+    };
+    stopPolling();
+
+    api
+      .oauthStart()
+      .then((s) => {
+        if (!alive) return;
+        setSession(s);
+        setRemain(s.expiresIn);
+        setStatus('waiting');
+        timerRef.current = setInterval(async () => {
+          setRemain((r) => Math.max(0, r - 3));
+          try {
+            const r = await api.oauthPoll(s.loginId);
+            if (!alive || !r.done) return;
+            stopPolling();
+            if (r.error) {
+              setStatus('error');
+              setMessage(r.error);
+            } else {
+              setStatus('done');
+              setMessage(`账号 ${r.result.email || r.result.nickname || r.result.uid || ''} 添加成功`);
+              onSaved();
+            }
+          } catch {
+            /* 网络抖动时下个周期继续轮询 */
+          }
+        }, 3000);
+      })
+      .catch((e) => {
+        if (alive) {
+          setStatus('error');
+          setMessage(e.message);
+        }
+      });
+
+    return () => {
+      alive = false;
+      stopPolling();
+    };
+  }, [open, onSaved]);
+
+  return (
+    <Modal open={open} onClose={onClose} title="扫码登录 WorkBuddy">
+      {status === 'loading' && <Empty text="正在向官方申请登录会话…" />}
+      {status === 'error' && (
+        <div className="space-y-3">
+          <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">{message}</div>
+          <div className="flex justify-end">
+            <Button variant="ghost" onClick={onClose}>关闭</Button>
+          </div>
+        </div>
+      )}
+      {status === 'done' && (
+        <div className="space-y-3">
+          <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-400">{message}</div>
+          <div className="flex justify-end">
+            <Button variant="primary" onClick={onClose}>完成</Button>
+          </div>
+        </div>
+      )}
+      {status === 'waiting' && session && (
+        <div className="space-y-4">
+          <ol className="space-y-2 text-sm text-zinc-300">
+            <li>1. 点击下方按钮打开 WorkBuddy 官方登录页（新标签页）</li>
+            <li>2. 在登录页用手机扫码或输入账号完成登录</li>
+            <li>3. 登录成功后本页会自动检测并保存账号，无需其他操作</li>
+          </ol>
+          <div className="flex items-center gap-2">
+            <Button variant="primary" onClick={() => window.open(session.verificationUri, '_blank', 'noopener')}>
+              <ExternalLink size={15} /> 打开登录页
+            </Button>
+            <Button variant="ghost" onClick={() => { navigator.clipboard.writeText(session.verificationUri); }}>
+              复制链接
+            </Button>
+          </div>
+          <div className="truncate rounded-lg border border-line bg-panel-2 px-3 py-2 text-xs text-zinc-500" title={session.verificationUri}>
+            {session.verificationUri}
+          </div>
+          <div className="text-xs text-zinc-500">
+            等待登录中… 剩余 {Math.floor(remain / 60)}:{String(remain % 60).padStart(2, '0')}
+            {remain <= 0 && '（已超时，请关闭后重试）'}
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
 
 function AccountFormDialog({ open, onClose, onSaved }) {
   const [form, setForm] = useState({ access_token: '', refresh_token: '', email: '', uid: '', enterpriseId: '', domain: '' });
@@ -71,6 +177,7 @@ function AccountFormDialog({ open, onClose, onSaved }) {
 export default function Accounts() {
   const [accounts, setAccounts] = useState([]);
   const [formOpen, setFormOpen] = useState(false);
+  const [oauthOpen, setOauthOpen] = useState(false);
   const [notice, setNotice] = useState('');
   const [busyId, setBusyId] = useState(null);
 
@@ -136,6 +243,9 @@ export default function Accounts() {
           <Button onClick={importLocal} disabled={busyId === 'import'}>
             <Download size={15} /> {busyId === 'import' ? '导入中…' : '从本机导入'}
           </Button>
+          <Button onClick={() => setOauthOpen(true)}>
+            <QrCode size={15} /> 扫码登录
+          </Button>
           <Button variant="primary" onClick={() => setFormOpen(true)}>
             <Plus size={15} /> 手动添加
           </Button>
@@ -150,7 +260,7 @@ export default function Accounts() {
 
       <Card>
         {accounts.length === 0 ? (
-          <Empty text="还没有账号。如果本机装了 WorkBuddy 并已登录，点「从本机导入」一键导入；否则点「手动添加」填入 token" />
+          <Empty text="还没有账号。推荐点「扫码登录」直接登录添加；本机装了 WorkBuddy 也可以「从本机导入」；或「手动添加」填入 token" />
         ) : (
           <table className="w-full text-sm">
             <thead>
@@ -220,6 +330,7 @@ export default function Accounts() {
       </div>
 
       <AccountFormDialog open={formOpen} onClose={() => setFormOpen(false)} onSaved={load} />
+      <OAuthDialog open={oauthOpen} onClose={() => setOauthOpen(false)} onSaved={load} />
     </div>
   );
 }

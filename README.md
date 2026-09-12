@@ -60,8 +60,9 @@ WantedBy=multi-user.target
 
 ## WorkBuddy 账号接入
 
-1. **从本机导入**（推荐）：本机安装并登录 WorkBuddy 客户端后，点击「账号管理 → 从本机导入」，程序会读取官方凭据文件 `%LOCALAPPDATA%\CodeBuddyExtension\Data\Public\auth\workbuddy-desktop.info`。
-2. **手动添加**：浏览器登录 codebuddy.cn 后，从开发者工具任意请求的请求头中复制 `Authorization: Bearer xxx` 中的 token 与 `refresh_token`（如有）。
+1. **扫码登录**（推荐）：点「账号管理 → 扫码登录」，在打开的官方登录页用手机扫码完成登录，账号自动入库（含 refresh token）。OAuth 流程对齐官方 cockpit：`POST /v2/plugin/auth/state` 申请 state → 打开登录页 → 轮询 `GET /v2/plugin/auth/token?state=` → 拉取 `/v2/plugin/login/account` 账号信息。
+2. **从本机导入**：本机安装并登录 WorkBuddy 客户端后，点击「账号管理 → 从本机导入」，程序会读取官方凭据文件 `%LOCALAPPDATA%\CodeBuddyExtension\Data\Public\auth\workbuddy-desktop.info`。
+3. **手动添加**：浏览器登录 codebuddy.cn 后，从开发者工具任意请求的请求头中复制 `Authorization: Bearer xxx` 中的 token 与 `refresh_token`（如有）。
 
 ## 签到接口（WorkBuddy）
 

@@ -310,6 +310,116 @@ async function importLocal() {
   return store.upsertAccount(account);
 }
 
+// ---------- OAuth 扫码登录（移植自上游 oauth.rs，复刻官方 cockpit 流程） ----------
+
+const OAUTH_TIMEOUT_SECONDS = 600;
+const oauthStates = new Map(); // loginId -> { state, expiresAt, done, result, error }
+
+// 与上游 save_collected_account 一致：按 uid（优先）/邮箱合并已有账号，保留原 id
+function saveOAuthAccount(account) {
+  const accounts = store.loadAccounts();
+  const existing = accounts.find(
+    (a) =>
+      (account.uid && a.uid === account.uid) ||
+      (account.email && a.email && account.email && a.email.toLowerCase() === account.email.toLowerCase()),
+  );
+  if (existing) {
+    account.id = existing.id;
+    account.createdAt = existing.createdAt;
+  }
+  return store.upsertAccount(account);
+}
+
+// 发起登录：向官方申请 state，返回 loginId / verificationUri / expiresIn
+async function oauthStart() {
+  const loginId = `wb_${crypto.randomBytes(16).toString('hex')}`;
+  const resp = await httpRequest(`${ENDPOINT}${API_PREFIX}/auth/state?platform=workbuddy`, {
+    method: 'POST',
+    body: {},
+  });
+  const data = (resp && resp.data) || {};
+  const state = getStr(data, 'state');
+  if (!state) {
+    throw new Error(`auth/state 响应缺少 state: ${JSON.stringify(resp).slice(0, 300)}`);
+  }
+  const authUrl =
+    getStr(data, 'authUrl') ||
+    getStr(data, 'auth_url') ||
+    getStr(data, 'url') ||
+    `${ENDPOINT}/login?state=${state}`;
+  oauthStates.set(loginId, {
+    state,
+    expiresAt: Math.floor(Date.now() / 1000) + OAUTH_TIMEOUT_SECONDS,
+    done: false,
+    result: null,
+    error: null,
+  });
+  return { loginId, verificationUri: authUrl, expiresIn: OAUTH_TIMEOUT_SECONDS };
+}
+
+// 轮询一次官方 token 接口；未完成返回 { done: false }，完成则账号入库并返回 { done: true, result }
+async function oauthPoll(loginId) {
+  const info = oauthStates.get(loginId);
+  if (!info) return { done: true, error: '登录请求不存在' };
+  if (info.done) return { done: true, result: info.result, error: info.error };
+  if (Math.floor(Date.now() / 1000) > info.expiresAt) {
+    info.done = true;
+    info.error = '登录超时，请重新发起';
+    return { done: true, error: info.error };
+  }
+
+  const resp = await httpRequest(`${ENDPOINT}${API_PREFIX}/auth/token?state=${info.state}`, {
+    method: 'GET',
+  });
+  const code = Number(resp && resp.code) || -1;
+  if (code !== 0 && code !== 200) return { done: false };
+
+  const data = (resp && resp.data) || {};
+  const access_token = getStr(data, 'accessToken') || getStr(data, 'access_token');
+  if (!access_token) return { done: false };
+
+  // 拉取账号信息
+  const profileHeaders = { Authorization: `Bearer ${access_token}` };
+  const domain = getStr(data, 'domain') || '';
+  if (domain) profileHeaders['X-Domain'] = domain;
+  const accResp = await httpRequest(
+    `${ENDPOINT}${API_PREFIX}/login/account?state=${info.state}`,
+    { method: 'GET', headers: profileHeaders },
+  );
+  const accData = (accResp && accResp.data) || {};
+
+  const expiresAt =
+    normTs(data.expiresAt || data.expires_at) ||
+    (Number.isFinite(Number(data.expiresIn)) ? nowMs() + Number(data.expiresIn) * 1000 : null);
+  const refreshExpiresAt =
+    normTs(data.refreshExpiresAt || data.refresh_expires_at) ||
+    (Number.isFinite(Number(data.refreshExpiresIn))
+      ? nowMs() + Number(data.refreshExpiresIn) * 1000
+      : null);
+
+  const account = {
+    id: crypto.randomUUID(),
+    provider: 'workbuddy',
+    uid: getStr(accData, 'uid'),
+    nickname: getStr(accData, 'nickname'),
+    email: getStr(accData, 'email'),
+    enterpriseName: getStr(accData, 'enterpriseName'),
+    enterpriseId: getStr(accData, 'enterpriseId'),
+    access_token,
+    refresh_token: getStr(data, 'refreshToken') || getStr(data, 'refresh_token'),
+    token_type: getStr(data, 'tokenType') || getStr(data, 'token_type') || 'Bearer',
+    domain,
+    expiresAt,
+    refreshExpiresAt,
+    createdAt: nowMs(),
+  };
+
+  const saved = saveOAuthAccount(account);
+  info.done = true;
+  info.result = store.accountMeta(saved);
+  return { done: true, result: info.result };
+}
+
 module.exports = {
   id: 'workbuddy',
   name: 'WorkBuddy（腾讯 AI 编程助手）',
@@ -319,5 +429,7 @@ module.exports = {
   refreshToken,
   ensureFreshToken,
   importLocal,
+  oauthStart,
+  oauthPoll,
   buildAuthHeaders,
 };
