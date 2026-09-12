@@ -1,5 +1,5 @@
 // 基础 UI 组件（风格对齐 workbuddy-switch：深色卡片 + 细边框 + 圆角）
-import { useEffect, useRef, useState } from 'react';
+import { Children, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, Check } from 'lucide-react';
 
@@ -116,7 +116,8 @@ export function Select({ value, onChange, children, className = '', disabled }) 
   const btnRef = useRef(null);
   const menuRef = useRef(null);
 
-  const items = (children ?? [])
+  // Children.toArray 会拍平 JSX 中嵌套数组形式的 children（如 {list.map(...)}）
+  const items = Children.toArray(children)
     .map((el) =>
       el && el.type === 'option'
         ? { value: el.props.value, label: el.props.children, disabled: el.props.disabled }
@@ -172,7 +173,7 @@ export function Select({ value, onChange, children, className = '', disabled }) 
         createPortal(
           <div
             ref={menuRef}
-            style={{ position: 'fixed', top: rect.top, left: rect.left, width: rect.width }}
+            style={{ position: 'fixed', top: rect.top, left: rect.left, minWidth: rect.width }}
             className="z-[60] max-h-64 overflow-y-auto rounded-xl border border-line bg-panel py-1 shadow-2xl"
           >
             {items.map((item) => {
@@ -192,7 +193,7 @@ export function Select({ value, onChange, children, className = '', disabled }) 
                       : 'text-zinc-300 hover:bg-zinc-700/40'
                   } disabled:cursor-not-allowed disabled:opacity-40`}
                 >
-                  <span className="min-w-0 truncate">{item.label}</span>
+                  <span className="min-w-0 whitespace-nowrap pr-2">{item.label}</span>
                   {selected && <Check size={14} className="shrink-0" />}
                 </button>
               );
