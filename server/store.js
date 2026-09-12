@@ -61,7 +61,7 @@ function deleteAccount(id) {
   return true;
 }
 
-// 账号展示信息（绝不返回 token / 密码字段）
+// 账号展示信息（绝不返回 token / 密码 / 会话字段）
 function accountMeta(account) {
   const {
     access_token,
@@ -69,6 +69,7 @@ function accountMeta(account) {
     virtual_key,
     device_id,
     password,
+    session_cookie,
     auth_raw,
     profile_raw,
     ...meta

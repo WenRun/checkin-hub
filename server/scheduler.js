@@ -135,7 +135,21 @@ async function runTask(task, trigger = 'auto') {
     task.lastMessage = results
       .map((r) => `${r.accountName}: ${r.result}${r.message ? `（${r.message}）` : ''}`)
       .join('；');
-    task.nextRunAt = computeNextRun(task, Date.now());
+
+    // 失败自动重试：自动调度失败后 30 分钟补试一次，每天最多 5 次（网络抖动容错）
+    const todayStr = new Date().toDateString();
+    if (task.retryDate !== todayStr) {
+      task.retryDate = todayStr;
+      task.retryCount = 0;
+    }
+    const failed = hasError && task.enabled;
+    if (failed && trigger !== 'manual' && (task.retryCount || 0) < 5) {
+      task.retryCount = (task.retryCount || 0) + 1;
+      task.nextRunAt = Date.now() + 30 * 60 * 1000;
+    } else {
+      if (!failed) task.retryCount = 0;
+      task.nextRunAt = computeNextRun(task, Date.now());
+    }
     store.upsertTask(task);
     return { ok: true, results };
   } finally {

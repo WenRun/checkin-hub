@@ -4,9 +4,10 @@
 
 const workbuddy = require('./workbuddy');
 const tokenbom = require('./tokenbom');
+const agentrouter = require('./agentrouter');
 
 const providers = new Map();
-for (const p of [workbuddy, tokenbom]) {
+for (const p of [workbuddy, tokenbom, agentrouter]) {
   providers.set(p.id, p);
 }
 
