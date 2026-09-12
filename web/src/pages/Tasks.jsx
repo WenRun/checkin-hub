@@ -94,14 +94,14 @@ function TaskFormDialog({ open, onClose, onSaved, providers, accounts, editing }
         </Field>
         <div className="grid grid-cols-2 gap-4">
           <Field label="站点">
-            <Select value={form.site} onChange={set('site')} disabled={!!editing}>
+            <Select value={form.site} onChange={(v) => setForm((f) => ({ ...f, site: v }))} disabled={!!editing}>
               {providers.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </Select>
           </Field>
           <Field label="账号">
-            <Select value={form.accountId} onChange={set('accountId')}>
+            <Select value={form.accountId} onChange={(v) => setForm((f) => ({ ...f, accountId: v }))}>
               <option value="*">全部账号</option>
               {accounts
                 .filter((a) => a.provider === form.site)

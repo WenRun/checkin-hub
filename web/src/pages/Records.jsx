@@ -32,13 +32,13 @@ export default function Records() {
           <p className="mt-0.5 text-sm text-zinc-500">所有任务的自动 / 手动执行明细（保留最近 5000 条）</p>
         </div>
         <div className="flex gap-2">
-          <Select value={taskId} onChange={(e) => setTaskId(e.target.value)} className="w-52">
+          <Select value={taskId} onChange={setTaskId} className="w-52">
             <option value="">全部任务</option>
             {tasks.map((t) => (
               <option key={t.id} value={t.id}>{t.name}</option>
             ))}
           </Select>
-          <Select value={result} onChange={(e) => setResult(e.target.value)} className="w-32">
+          <Select value={result} onChange={setResult} className="w-32">
             <option value="">全部结果</option>
             <option value="success">成功</option>
             <option value="already">已签到</option>

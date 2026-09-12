@@ -1,5 +1,7 @@
 // 基础 UI 组件（风格对齐 workbuddy-switch：深色卡片 + 细边框 + 圆角）
-import { ChevronDown } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { ChevronDown, Check } from 'lucide-react';
 
 export function Card({ children, className = '' }) {
   return (
@@ -106,21 +108,99 @@ export function Input(props) {
   return <input className={inputCls} {...props} />;
 }
 
-export function Select({ className = '', children, ...props }) {
-  // 胶囊造型 + 自定义下拉箭头（对齐原项目设置页的选择框样式）
+// 自定义下拉选择：胶囊触发器 + 主题化弹出选项面板（原生 option 无法定制样式）
+// 接口：value / onChange(value) / disabled / className；选项通过 <option> 子元素传入
+export function Select({ value, onChange, children, className = '', disabled }) {
+  const [open, setOpen] = useState(false);
+  const [rect, setRect] = useState({ top: 0, left: 0, width: 0 });
+  const btnRef = useRef(null);
+  const menuRef = useRef(null);
+
+  const items = (children ?? [])
+    .map((el) =>
+      el && el.type === 'option'
+        ? { value: el.props.value, label: el.props.children, disabled: el.props.disabled }
+        : null,
+    )
+    .filter(Boolean);
+  const current = items.find((i) => String(i.value) === String(value)) || items[0];
+
+  const openMenu = () => {
+    if (disabled) return;
+    const r = btnRef.current.getBoundingClientRect();
+    setRect({ top: r.bottom + 4, left: r.left, width: r.width });
+    setOpen(true);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => {
+      if (!btnRef.current?.contains(e.target) && !menuRef.current?.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+    const onKey = (e) => e.key === 'Escape' && setOpen(false);
+    const onReposition = () => setOpen(false);
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', onReposition, true);
+    window.addEventListener('resize', onReposition);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onReposition, true);
+      window.removeEventListener('resize', onReposition);
+    };
+  }, [open]);
+
   return (
-    <div className={`relative ${className}`}>
-      <select
-        className="w-full cursor-pointer appearance-none rounded-full border border-line bg-panel-2 py-2 pl-4 pr-9 text-sm text-zinc-100 outline-none transition-colors hover:border-zinc-600 focus:border-emerald-600/60"
-        {...props}
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        disabled={disabled}
+        onClick={() => (open ? setOpen(false) : openMenu())}
+        className={`flex w-full cursor-pointer items-center justify-between gap-2 rounded-full border border-line bg-panel-2 py-2 pl-4 pr-3.5 text-sm text-zinc-100 outline-none transition-colors hover:border-zinc-600 focus:border-emerald-600/60 disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
       >
-        {children}
-      </select>
-      <ChevronDown
-        size={14}
-        className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-500"
-      />
-    </div>
+        <span className="truncate">{current ? current.label : '\u00A0'}</span>
+        <ChevronDown
+          size={14}
+          className={`shrink-0 text-zinc-500 transition-transform ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {open &&
+        createPortal(
+          <div
+            ref={menuRef}
+            style={{ position: 'fixed', top: rect.top, left: rect.left, width: rect.width }}
+            className="z-[60] max-h-64 overflow-y-auto rounded-xl border border-line bg-panel py-1 shadow-2xl"
+          >
+            {items.map((item) => {
+              const selected = String(item.value) === String(current?.value);
+              return (
+                <button
+                  key={String(item.value)}
+                  type="button"
+                  disabled={item.disabled}
+                  onClick={() => {
+                    onChange(item.value);
+                    setOpen(false);
+                  }}
+                  className={`flex w-full items-center justify-between gap-2 px-4 py-2 text-left text-sm transition-colors ${
+                    selected
+                      ? 'bg-emerald-600/10 font-medium text-emerald-400'
+                      : 'text-zinc-300 hover:bg-zinc-700/40'
+                  } disabled:cursor-not-allowed disabled:opacity-40`}
+                >
+                  <span className="min-w-0 truncate">{item.label}</span>
+                  {selected && <Check size={14} className="shrink-0" />}
+                </button>
+              );
+            })}
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }
 
