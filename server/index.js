@@ -13,6 +13,14 @@ const PORT = Number(process.env.PORT) || 57891;
 const app = express();
 app.use(express.json());
 
+// 常驻服务不允许因未捕获异常退出：记录并继续（各请求路径已有自己的兜底）
+process.on('unhandledRejection', (reason) => {
+  console.error('[未处理的 Promise 拒绝]', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[未捕获异常]', err);
+});
+
 // ---------- 设置 ----------
 app.get('/api/settings', (_req, res) => {
   res.json(store.loadSettings());
@@ -359,7 +367,13 @@ app.get('/api/credits', async (req, res) => {
     return provider && typeof provider.getCredits === 'function';
   });
   const results = await Promise.all(
-    accounts.map((account) => getProvider(account.provider).getCredits(account)),
+    accounts.map(async (account) => {
+      try {
+        return await getProvider(account.provider).getCredits(account);
+      } catch (e) {
+        return { ok: false, accountId: account.id, accountName: account.email || account.id, error: e.message };
+      }
+    }),
   );
   res.json(results);
 });

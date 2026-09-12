@@ -105,7 +105,7 @@ function parseHttpResponse(buf) {
 }
 
 // 走本机代理隧道发起 HTTPS 请求；代理节点可能不稳定，自动重试并在代理/直连间切换
-function tunneledRequest(pathName, { method = 'GET', headers = {}, body, timeoutMs = 25000 } = {}) {
+function tunneledRequest(pathName, { method = 'GET', headers = {}, body, timeoutMs = 25000, rounds = 3 } = {}) {
   const proxy = detectProxy();
   const target = proxy ? proxyTarget(proxy) : null;
   const bodyStr =
@@ -172,7 +172,7 @@ function tunneledRequest(pathName, { method = 'GET', headers = {}, body, timeout
   // 代理节点可能抖动：代理 → 直连 → 代理 共三轮
   return (async () => {
     const errors = [];
-    for (let round = 0; round < 3; round++) {
+    for (let round = 0; round < rounds; round++) {
       try {
         if (proxy) return await viaTunnel();
       } catch (e) {
@@ -340,27 +340,35 @@ async function getCredits(account) {
     kind: 'balance',
     resources: [],
   };
-  const { resp } = await authedRequest(account, '/api/user/self');
-  if (!resp.json || resp.json.success !== true) {
-    return { ...base, ok: false, error: extractError({ message: resp.json?.message || resp.text, httpStatus: resp.httpStatus }) };
+  try {
+    // 余额查询走快速失败（单轮次+短超时），网络不可用时立刻返回错误而不是长时间等待
+    const { resp } = await authedRequest(account, '/api/user/self', {
+      rounds: 1,
+      timeoutMs: 15000,
+    });
+    if (!resp.json || resp.json.success !== true) {
+      return { ...base, ok: false, error: extractError({ message: resp.json?.message || resp.text, httpStatus: resp.httpStatus }) };
+    }
+    const user = resp.json.data || {};
+    const quota = Number(user.quota ?? 0);
+    return {
+      ...base,
+      ok: true,
+      kind: 'balance',
+      balance: quota,
+      totalRemaining: quota,
+      todayCheckedIn: user.checked_in === true,
+      usedQuota: Number(user.used_quota ?? 0) || 0,
+    };
+  } catch (e) {
+    return { ...base, ok: false, error: e.message };
   }
-  const user = resp.json.data || {};
-  const quota = Number(user.quota ?? 0);
-  return {
-    ...base,
-    ok: true,
-    kind: 'balance',
-    balance: quota,
-    totalRemaining: quota,
-    todayCheckedIn: user.checked_in === true,
-    usedQuota: Number(user.used_quota ?? 0) || 0,
-  };
 }
 
 // 带会话请求；401/未登录时自动重新登录一次
-async function authedRequest(account, pathName) {
+async function authedRequest(account, pathName, opts = {}) {
   let acc = account;
-  let resp = await tunneledRequest(pathName, { headers: buildHeaders(acc) });
+  let resp = await tunneledRequest(pathName, { headers: buildHeaders(acc), ...opts });
   const unauthorized =
     resp.httpStatus === 401 ||
     (resp.json && resp.json.success === false && /未登录|无权|login/i.test(resp.json.message || ''));
@@ -368,7 +376,7 @@ async function authedRequest(account, pathName) {
     const r = await login({ ...acc });
     if (!r.ok) return { resp, account: acc };
     acc = store.findAccount(account.id) || acc;
-    resp = await tunneledRequest(pathName, { headers: buildHeaders(acc) });
+    resp = await tunneledRequest(pathName, { headers: buildHeaders(acc), ...opts });
   }
   return { resp, account: acc };
 }
