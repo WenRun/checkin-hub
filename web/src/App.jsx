@@ -5,17 +5,20 @@ import {
   Users,
   ScrollText,
   CalendarClock,
+  Settings as SettingsIcon,
 } from 'lucide-react';
 import Dashboard from './pages/Dashboard.jsx';
 import Tasks from './pages/Tasks.jsx';
 import Accounts from './pages/Accounts.jsx';
 import Records from './pages/Records.jsx';
+import Settings from './pages/Settings.jsx';
 
 const NAV = [
   { id: 'dashboard', label: '总览', icon: LayoutDashboard },
   { id: 'tasks', label: '任务管理', icon: ListChecks },
   { id: 'accounts', label: '账号管理', icon: Users },
   { id: 'records', label: '执行记录', icon: ScrollText },
+  { id: 'settings', label: '设置', icon: SettingsIcon },
 ];
 
 export default function App() {
@@ -58,6 +61,7 @@ export default function App() {
         {page === 'tasks' && <Tasks />}
         {page === 'accounts' && <Accounts />}
         {page === 'records' && <Records />}
+        {page === 'settings' && <Settings />}
       </main>
     </div>
   );

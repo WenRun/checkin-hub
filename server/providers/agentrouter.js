@@ -23,26 +23,39 @@ const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
 // ---------- 代理探测 ----------
+// 优先级：设置页配置的代理 > 环境变量 AGENTROUTER_PROXY > Windows 系统代理（自动探测）> 直连
 
-let cachedProxy;
+let cachedRegistryProxy;
+
 function detectProxy() {
-  if (cachedProxy !== undefined) return cachedProxy;
+  const settings = store.loadSettings();
+  if (settings.proxyUrl) return settings.proxyUrl;
   if (process.env.AGENTROUTER_PROXY !== undefined) {
-    cachedProxy = process.env.AGENTROUTER_PROXY || null;
-    return cachedProxy;
+    return process.env.AGENTROUTER_PROXY || null;
   }
+  if (cachedRegistryProxy === undefined) {
+    try {
+      const out = execSync(
+        'reg query "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings"',
+        { encoding: 'utf8', timeout: 5000, stdio: ['pipe', 'pipe', 'pipe'] },
+      );
+      const enabled = /ProxyEnable\s+REG_DWORD\s+0x1/.test(out);
+      const server = /ProxyServer\s+REG_SZ\s+([^\r\n]+)/.exec(out);
+      cachedRegistryProxy = enabled && server ? server[1].trim() : null;
+    } catch {
+      cachedRegistryProxy = null; // 非 Windows 或读取失败：直连
+    }
+  }
+  return cachedRegistryProxy;
+}
+
+function proxyTarget(proxy) {
   try {
-    const out = execSync(
-      'reg query "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings"',
-      { encoding: 'utf8', timeout: 5000, stdio: ['pipe', 'pipe', 'pipe'] },
-    );
-    const enabled = /ProxyEnable\s+REG_DWORD\s+0x1/.test(out);
-    const server = /ProxyServer\s+REG_SZ\s+([^\r\n]+)/.exec(out);
-    cachedProxy = enabled && server ? server[1].trim() : null;
+    const u = new URL(proxy.includes('://') ? proxy : `http://${proxy}`);
+    return { host: u.hostname, port: Number(u.port) || 80 };
   } catch {
-    cachedProxy = null;
+    return null;
   }
-  return cachedProxy;
 }
 
 // ---------- 极简 HTTP 客户端（CONNECT 隧道 + TLS + 手写 HTTP/1.1） ----------
@@ -94,13 +107,14 @@ function parseHttpResponse(buf) {
 // 走本机代理隧道发起 HTTPS 请求；代理节点可能不稳定，自动重试并在代理/直连间切换
 function tunneledRequest(pathName, { method = 'GET', headers = {}, body, timeoutMs = 25000 } = {}) {
   const proxy = detectProxy();
-  const [proxyHost, proxyPort] = proxy ? proxy.split(':') : [];
+  const target = proxy ? proxyTarget(proxy) : null;
   const bodyStr =
     body === undefined ? '' : typeof body === 'string' ? body : JSON.stringify(body);
 
   const viaTunnel = () =>
     new Promise((resolve, reject) => {
-      const socket = net.connect({ host: proxyHost || '127.0.0.1', port: Number(proxyPort) || 2080 });
+      if (!target) return reject(new Error('代理地址无效'));
+      const socket = net.connect({ host: target.host, port: target.port });
       socket.setTimeout(timeoutMs);
       let stage = 'connecting';
       let tlsSock = null;

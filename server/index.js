@@ -13,6 +13,25 @@ const PORT = Number(process.env.PORT) || 57891;
 const app = express();
 app.use(express.json());
 
+// ---------- 设置 ----------
+app.get('/api/settings', (_req, res) => {
+  res.json(store.loadSettings());
+});
+
+app.put('/api/settings', (req, res) => {
+  const settings = store.loadSettings();
+  const body = req.body || {};
+  if (body.proxyUrl !== undefined) {
+    const v = String(body.proxyUrl).trim();
+    if (v && !/^https?:\/\/[\w.-]+(:\d+)?$/.test(v)) {
+      return res.status(400).json({ error: '代理地址格式：http://主机:端口' });
+    }
+    settings.proxyUrl = v;
+  }
+  store.saveSettings(settings);
+  res.json(settings);
+});
+
 // ---------- 站点 ----------
 app.get('/api/providers', (_req, res) => {
   res.json(listProviders());

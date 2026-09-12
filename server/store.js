@@ -31,6 +31,15 @@ function writeJson(name, value) {
   fs.renameSync(tmp, target);
 }
 
+// ---------- settings ----------
+function loadSettings() {
+  return readJson('settings.json', {});
+}
+
+function saveSettings(settings) {
+  writeJson('settings.json', settings);
+}
+
 // ---------- accounts ----------
 function loadAccounts() {
   return readJson('accounts.json', []);
@@ -138,6 +147,8 @@ function queryRecords({ taskId, result, limit = 100 } = {}) {
 
 module.exports = {
   DATA_DIR,
+  loadSettings,
+  saveSettings,
   loadAccounts,
   saveAccounts,
   findAccount,

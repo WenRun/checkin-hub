@@ -44,6 +44,8 @@ export const api = {
   },
   credits: (accountId) =>
     request(`/api/credits${accountId ? `?accountId=${accountId}` : ''}`),
+  settings: () => request('/api/settings'),
+  saveSettings: (body) => request('/api/settings', { method: 'PUT', body }),
 };
 
 export function fmtTime(ms) {
