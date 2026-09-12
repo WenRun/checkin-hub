@@ -1,4 +1,5 @@
 // 基础 UI 组件（风格对齐 workbuddy-switch：深色卡片 + 细边框 + 圆角）
+import { ChevronDown } from 'lucide-react';
 
 export function Card({ children, className = '' }) {
   return (
@@ -105,8 +106,22 @@ export function Input(props) {
   return <input className={inputCls} {...props} />;
 }
 
-export function Select(props) {
-  return <select className={inputCls} {...props} />;
+export function Select({ className = '', children, ...props }) {
+  // 胶囊造型 + 自定义下拉箭头（对齐原项目设置页的选择框样式）
+  return (
+    <div className={`relative ${className}`}>
+      <select
+        className="w-full cursor-pointer appearance-none rounded-full border border-line bg-panel-2 py-2 pl-4 pr-9 text-sm text-zinc-100 outline-none transition-colors hover:border-zinc-600 focus:border-emerald-600/60"
+        {...props}
+      >
+        {children}
+      </select>
+      <ChevronDown
+        size={14}
+        className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-500"
+      />
+    </div>
+  );
 }
 
 export function Textarea(props) {
