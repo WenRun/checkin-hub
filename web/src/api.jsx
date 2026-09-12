@@ -31,7 +31,11 @@ export const api = {
   deleteTask: (id) => request(`/api/tasks/${id}`, { method: 'DELETE' }),
 
   records: (params = {}) => {
-    const qs = new URLSearchParams(params).toString();
+    // 过滤掉 undefined/null，避免被序列化成 "undefined" 字符串导致后端按该值过滤
+    const clean = Object.fromEntries(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== ''),
+    );
+    const qs = new URLSearchParams(clean).toString();
     return request(`/api/records${qs ? `?${qs}` : ''}`);
   },
   credits: (accountId) =>
