@@ -245,6 +245,24 @@ app.get('/api/overview', (_req, res) => {
   });
 });
 
+// ---------- 积分 ----------
+// 查询所有（或指定）账号的积分资源包与到期时间
+app.get('/api/credits', async (req, res) => {
+  const accounts = store
+    .loadAccounts()
+    .filter((a) => !req.query.accountId || a.id === req.query.accountId);
+  const results = await Promise.all(
+    accounts.map(async (account) => {
+      const provider = getProvider(account.provider);
+      if (!provider || !provider.getCredits) {
+        return { ok: false, accountId: account.id, accountName: account.email || account.id, error: '该站点不支持积分查询' };
+      }
+      return provider.getCredits(account);
+    }),
+  );
+  res.json(results);
+});
+
 // ---------- 前端静态资源（生产模式） ----------
 const distDir = path.join(__dirname, '..', 'dist');
 if (fs.existsSync(distDir)) {

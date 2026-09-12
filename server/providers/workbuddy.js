@@ -13,6 +13,7 @@ const crypto = require('crypto');
 
 const { httpRequest } = require('../util/http');
 const store = require('../store');
+const credits = require('./workbuddy-credits');
 
 const ENDPOINT = 'https://www.codebuddy.cn';
 const API_PREFIX = '/v2/plugin';
@@ -481,5 +482,6 @@ module.exports = {
   oauthStart,
   oauthPoll,
   oauthDebug,
+  getCredits: (account) => credits.getCredits(module.exports, account),
   buildAuthHeaders,
 };

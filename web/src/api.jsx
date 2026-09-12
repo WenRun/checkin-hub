@@ -34,6 +34,8 @@ export const api = {
     const qs = new URLSearchParams(params).toString();
     return request(`/api/records${qs ? `?${qs}` : ''}`);
   },
+  credits: (accountId) =>
+    request(`/api/credits${accountId ? `?accountId=${accountId}` : ''}`),
 };
 
 export function fmtTime(ms) {
