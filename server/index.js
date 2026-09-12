@@ -43,35 +43,31 @@ app.get('/api/accounts', (_req, res) => {
 });
 
 app.post('/api/accounts', async (req, res) => {
-  const { provider: providerId = 'workbuddy', access_token, ...rest } = req.body || {};
+  const providerId = req.body?.provider || 'workbuddy';
   const provider = getProvider(providerId);
   if (!provider) return res.status(400).json({ error: '未知的站点类型' });
-  if (!access_token || !String(access_token).trim()) {
-    return res.status(400).json({ error: 'access_token 不能为空' });
-  }
+  const fields = provider.manualFields || [];
   const account = {
     id: crypto.randomUUID(),
     provider: providerId,
-    access_token: String(access_token).trim(),
-    refresh_token: rest.refresh_token ? String(rest.refresh_token).trim() : '',
-    uid: rest.uid || '',
-    email: rest.email || '',
-    nickname: rest.nickname || '',
-    enterpriseId: rest.enterpriseId || '',
-    domain: rest.domain || '',
-    expiresAt: Number(rest.expiresAt) || null,
-    refreshExpiresAt: Number(rest.refreshExpiresAt) || null,
+    uid: '',
+    email: '',
+    nickname: '',
+    enterpriseId: '',
+    domain: '',
+    expiresAt: null,
+    refreshExpiresAt: null,
     createdAt: Date.now(),
   };
-  // provider 声明的扩展字段（如 tokenbom 的 virtual_key）透传保存
-  const handled = new Set([
-    'provider', 'access_token', 'refresh_token', 'uid', 'email', 'nickname',
-    'enterpriseId', 'domain', 'expiresAt', 'refreshExpiresAt',
-  ]);
-  for (const f of provider.manualFields || []) {
-    if (handled.has(f.key)) continue;
-    if (rest[f.key] !== undefined) account[f.key] = String(rest[f.key]).trim();
+  // 按 provider 声明的表单字段取值并校验必填（不同平台凭据类型不同）
+  for (const f of fields) {
+    const v = req.body?.[f.key];
+    account[f.key] = v !== undefined ? String(v).trim() : '';
+    if (f.required && !account[f.key]) {
+      return res.status(400).json({ error: `${f.label || f.key} 不能为空` });
+    }
   }
+  if (req.body?.expiresAt) account.expiresAt = Number(req.body.expiresAt) || null;
   store.upsertAccount(account);
   res.json(store.accountMeta(account));
 });
