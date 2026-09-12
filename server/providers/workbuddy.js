@@ -52,12 +52,18 @@ function buildAuthHeaders(account) {
 }
 
 function isUnauthorized(resp) {
-  const code = Number(resp && resp.code) || -1;
+  const code = respCode(resp);
   if (code === 401 || code === 403) return true;
   const msg = String((resp && (resp.message || resp.msg)) || '').toLowerCase();
   return ['unauthorized', '401', '登录', '失效', '过期', 'token'].some((k) =>
     msg.includes(k),
   );
+}
+
+// 官方业务码：0 表示成功。注意不能用 `Number(x) || -1`——0 是合法成功码会被误判。
+function respCode(resp) {
+  const n = Number(resp && resp.code);
+  return Number.isFinite(n) ? n : -1;
 }
 
 // 与上游 norm_ts 一致：兼容秒/毫秒时间戳
@@ -90,7 +96,7 @@ async function refreshToken(account) {
     body: {},
     headers,
   });
-  const code = Number(resp && resp.code) || -1;
+  const code = respCode(resp);
   if (code !== 0 && code !== 200) {
     account.needs_relogin = true;
     account.needs_relogin_reason = `刷新失败(code=${code}): ${
@@ -166,7 +172,7 @@ async function checkinRequest(pathName, account) {
 
 async function getCheckinStatus(account) {
   const { resp } = await checkinRequest(`${CHECKIN_PREFIX}/checkin-activity-status`, account);
-  let code = Number(resp && resp.code) || -1;
+  let code = respCode(resp);
   if (code === 0 || code === 200) {
     const data = resp.data || {};
     return {
@@ -176,7 +182,7 @@ async function getCheckinStatus(account) {
   }
   // 新接口失败回退旧接口
   const fallback = await checkinRequest(`${CHECKIN_PREFIX}/checkin-status`, account);
-  code = Number(fallback.resp && fallback.resp.code) || -1;
+  code = respCode(fallback.resp);
   if (code === 0 || code === 200) {
     const data = fallback.resp.data || {};
     return {
@@ -193,7 +199,7 @@ async function getCheckinStatus(account) {
 
 async function performCheckin(account) {
   const { resp } = await checkinRequest(`${CHECKIN_PREFIX}/daily-checkin`, account);
-  const code = Number(resp && resp.code) || -1;
+  const code = respCode(resp);
   if (code === 0 || code === 200) return { ok: true };
   const msg = String((resp && (resp.message || resp.msg)) || `code=${code}`);
   if (msg.includes('已签到') || msg.toLowerCase().includes('repeat')) {
@@ -368,15 +374,35 @@ async function oauthPoll(loginId) {
     return { done: true, error: info.error };
   }
 
-  const resp = await httpRequest(`${ENDPOINT}${API_PREFIX}/auth/token?state=${info.state}`, {
-    method: 'GET',
-  });
-  const code = Number(resp && resp.code) || -1;
-  if (code !== 0 && code !== 200) return { done: false };
+  const url = `${ENDPOINT}${API_PREFIX}/auth/token?state=${info.state}`;
+  const resp = await httpRequest(url, { method: 'GET' });
+  // 记录原始响应便于排查（官方待扫码/已扫码/已完成返回不同 code）
+  info.lastPoll = {
+    at: new Date().toISOString(),
+    httpCode: respCode(resp),
+    keys: resp && typeof resp === 'object' ? Object.keys(resp) : [],
+    snippet: JSON.stringify(resp).slice(0, 400),
+  };
+  const code = respCode(resp);
+  if (code !== 0 && code !== 200) {
+    return { done: false, debug: info.lastPoll };
+  }
 
   const data = (resp && resp.data) || {};
-  const access_token = getStr(data, 'accessToken') || getStr(data, 'access_token');
-  if (!access_token) return { done: false };
+  // 兼容字段可能在顶层或 data 内两种返回形态
+  const pick = (...keys) => {
+    for (const k of keys) {
+      const v = getStr(data, k) || getStr(resp, k);
+      if (v) return v;
+    }
+    return null;
+  };
+  const access_token = pick('accessToken', 'access_token');
+  if (!access_token) {
+    info.done = true;
+    info.error = `登录响应缺少 accessToken: ${JSON.stringify(resp).slice(0, 300)}`;
+    return { done: true, error: info.error };
+  }
 
   // 拉取账号信息
   const profileHeaders = { Authorization: `Bearer ${access_token}` };
@@ -406,11 +432,24 @@ async function oauthPoll(loginId) {
     enterpriseName: getStr(accData, 'enterpriseName'),
     enterpriseId: getStr(accData, 'enterpriseId'),
     access_token,
-    refresh_token: getStr(data, 'refreshToken') || getStr(data, 'refresh_token'),
-    token_type: getStr(data, 'tokenType') || getStr(data, 'token_type') || 'Bearer',
-    domain,
-    expiresAt,
-    refreshExpiresAt,
+    refresh_token:
+      pick('refreshToken', 'refresh_token') ||
+      getStr(accData, 'refreshToken') ||
+      getStr(accData, 'refresh_token'),
+    token_type: pick('tokenType', 'token_type') || 'Bearer',
+    domain: domain || getStr(accData, 'domain'),
+    expiresAt:
+      normTs(data.expiresAt || data.expires_at || resp.expiresAt || resp.expires_at) ||
+      (Number.isFinite(Number(data.expiresIn ?? resp.expiresIn))
+        ? nowMs() + Number(data.expiresIn ?? resp.expiresIn) * 1000
+        : null),
+    refreshExpiresAt:
+      normTs(
+        data.refreshExpiresAt || data.refresh_expires_at || resp.refreshExpiresAt,
+      ) ||
+      (Number.isFinite(Number(data.refreshExpiresIn ?? resp.refreshExpiresIn))
+        ? nowMs() + Number(data.refreshExpiresIn ?? resp.refreshExpiresIn) * 1000
+        : null),
     createdAt: nowMs(),
   };
 
@@ -418,6 +457,16 @@ async function oauthPoll(loginId) {
   info.done = true;
   info.result = store.accountMeta(saved);
   return { done: true, result: info.result };
+}
+
+// 诊断用：列出进行中的登录会话与最近一次官方响应
+function oauthDebug() {
+  return [...oauthStates.entries()].map(([id, info]) => ({
+    loginId: id,
+    done: info.done,
+    expiresAt: info.expiresAt,
+    lastPoll: info.lastPoll || null,
+  }));
 }
 
 module.exports = {
@@ -431,5 +480,6 @@ module.exports = {
   importLocal,
   oauthStart,
   oauthPoll,
+  oauthDebug,
   buildAuthHeaders,
 };

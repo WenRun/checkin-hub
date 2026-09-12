@@ -8,6 +8,7 @@ function OAuthDialog({ open, onClose, onSaved }) {
   const [status, setStatus] = useState('loading'); // loading | waiting | done | error
   const [message, setMessage] = useState('');
   const [remain, setRemain] = useState(0);
+  const [debugInfo, setDebugInfo] = useState(null);
   const timerRef = useRef(null);
 
   useEffect(() => {
@@ -34,7 +35,10 @@ function OAuthDialog({ open, onClose, onSaved }) {
           setRemain((r) => Math.max(0, r - 3));
           try {
             const r = await api.oauthPoll(s.loginId);
-            if (!alive || !r.done) return;
+            if (!alive || !r.done) {
+              if (r && r.debug) setDebugInfo(r.debug);
+              return;
+            }
             stopPolling();
             if (r.error) {
               setStatus('error');
@@ -103,6 +107,14 @@ function OAuthDialog({ open, onClose, onSaved }) {
             等待登录中… 剩余 {Math.floor(remain / 60)}:{String(remain % 60).padStart(2, '0')}
             {remain <= 0 && '（已超时，请关闭后重试）'}
           </div>
+          {debugInfo && (
+            <details className="text-xs text-zinc-600">
+              <summary className="cursor-pointer select-none">官方接口最近响应（诊断信息）</summary>
+              <div className="mt-1 break-all rounded border border-line bg-panel-2 p-2 font-mono">
+                {JSON.stringify(debugInfo)}
+              </div>
+            </details>
+          )}
         </div>
       )}
     </Modal>

@@ -106,6 +106,12 @@ app.get('/api/oauth/poll/:loginId', async (req, res) => {
   }
 });
 
+// 诊断用：查看进行中的登录会话及官方最近一次响应
+app.get('/api/oauth/debug', (_req, res) => {
+  const provider = getProvider('workbuddy');
+  res.json(provider ? provider.oauthDebug() : []);
+});
+
 // ---------- 任务 ----------
 function validateSchedule(schedule) {
   const s = schedule || {};
