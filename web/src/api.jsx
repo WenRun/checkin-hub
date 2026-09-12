@@ -15,6 +15,7 @@ export const api = {
   accounts: () => request('/api/accounts'),
   addAccount: (body) => request('/api/accounts', { method: 'POST', body }),
   updateAccount: (id, body) => request(`/api/accounts/${id}`, { method: 'PUT', body }),
+  accountCredentials: (id) => request(`/api/accounts/${id}/credentials`),
   accountCaptcha: (id) => request(`/api/accounts/${id}/captcha`),
   accountRelogin: (id, body) => request(`/api/accounts/${id}/relogin`, { method: 'POST', body }),
   importLocal: (provider = 'workbuddy') =>

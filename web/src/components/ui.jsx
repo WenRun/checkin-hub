@@ -69,23 +69,26 @@ export function Badge({ children, className = '' }) {
 export function Modal({ open, onClose, title, children, wide = false }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div
-        className={`relative max-h-[85vh] w-full overflow-y-auto rounded-xl border border-line bg-panel shadow-2xl ${
-          wide ? 'max-w-2xl' : 'max-w-lg'
-        }`}
-      >
-        <div className="sticky top-0 flex items-center justify-between border-b border-line bg-panel px-5 py-4">
-          <h3 className="text-sm font-semibold text-zinc-100">{title}</h3>
-          <button
-            onClick={onClose}
-            className="rounded-md p-1 text-zinc-500 hover:bg-zinc-700/40 hover:text-zinc-200"
-          >
-            ✕
-          </button>
+    <div
+      className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4"
+      onClick={onClose}
+    >
+      <div className="flex min-h-full items-center justify-center">
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className={`relative w-full rounded-xl border border-line bg-panel shadow-2xl ${wide ? 'max-w-2xl' : 'max-w-lg'}`}
+        >
+          <div className="sticky top-0 flex items-center justify-between border-b border-line bg-panel px-5 py-4">
+            <h3 className="text-sm font-semibold text-zinc-100">{title}</h3>
+            <button
+              onClick={onClose}
+              className="rounded-md p-1 text-zinc-500 hover:bg-zinc-700/40 hover:text-zinc-200"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="px-5 py-4">{children}</div>
         </div>
-        <div className="px-5 py-4">{children}</div>
       </div>
     </div>
   );

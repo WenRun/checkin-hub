@@ -91,6 +91,18 @@ app.put('/api/accounts/:id', (req, res) => {
   res.json(store.accountMeta(account));
 });
 
+// 凭据回显：私有部署场景，编辑弹窗需要把已存的 token/密码带回表单
+app.get('/api/accounts/:id/credentials', (req, res) => {
+  const account = store.findAccount(req.params.id);
+  if (!account) return res.status(404).json({ error: '账号不存在' });
+  const provider = getProvider(account.provider);
+  const out = {};
+  for (const f of provider?.manualFields || []) {
+    out[f.key] = account[f.key] ?? '';
+  }
+  res.json(out);
+});
+
 app.post('/api/accounts/:id/refresh', async (req, res) => {
   const account = store.findAccount(req.params.id);
   if (!account) return res.status(404).json({ error: '账号不存在' });

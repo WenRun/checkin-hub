@@ -133,19 +133,23 @@ function AccountFormDialog({ open, onClose, onSaved, provider, editing }) {
   const [form, setForm] = useState({});
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setError('');
     if (editing) {
-      // 编辑模式：只回填非敏感字段，凭据留空表示保持不变
-      const next = {};
-      for (const f of fields) {
-        if (!SECRET_HINTS.some((s) => f.key.toLowerCase().includes(s))) {
-          next[f.key] = editing[f.key] || '';
-        }
-      }
-      setForm(next);
+      // 编辑模式：拉取凭据回显全部字段（含 token/密码），保存时原样提交
+      setLoading(true);
+      api
+        .accountCredentials(editing.id)
+        .then((creds) => {
+          const next = {};
+          for (const f of fields) next[f.key] = creds[f.key] || '';
+          setForm(next);
+        })
+        .catch((e) => setError(e.message))
+        .finally(() => setLoading(false));
     } else {
       setForm({});
     }
@@ -177,33 +181,34 @@ function AccountFormDialog({ open, onClose, onSaved, provider, editing }) {
     >
       <div className="space-y-4">
         {fields.length === 0 && <Empty text="该平台暂未配置账号表单" />}
-        {editing && (
-          <div className="rounded-lg border border-line bg-panel-2 px-3 py-2 text-xs text-zinc-500">
-            凭据字段留空表示保持不变。
-            {editing.needs_relogin && (
-              <span className="ml-1 text-amber-400">该账号当前标记为「需重新登录」，更新 token 或补齐邮箱/密码后即可恢复。</span>
-            )}
+        {loading && <Empty text="正在加载已保存的凭据…" />}
+        {!loading && editing && (
+          <div className="flex items-start gap-2 rounded-lg border border-line bg-panel-2 px-3 py-2 text-xs text-zinc-500">
+            <AlertTriangle size={13} className="mt-0.5 shrink-0 text-amber-500" />
+            <span>
+              已回显当前保存的凭据，修改后点保存即可。
+              {editing.needs_relogin && (
+                <span className="ml-1 text-amber-400">该账号当前为「需重新登录」状态，更新凭据保存后即恢复。</span>
+              )}
+            </span>
           </div>
         )}
-        {fields.map((f) => (
-          <Field
-            key={f.key}
-            label={editing && isSecret(f.key) ? `${f.label}（留空保持不变）` : f.label}
-            hint={f.hint}
-          >
-            <Input
-              value={form[f.key] || ''}
-              onChange={set(f.key)}
-              placeholder={editing && isSecret(f.key) ? '留空保持不变' : f.placeholder || ''}
-              required={!editing && f.required}
-              type={isSecret(f.key) ? 'password' : 'text'}
-            />
-          </Field>
-        ))}
+        {!loading &&
+          fields.map((f) => (
+            <Field key={f.key} label={f.label} hint={f.hint}>
+              <Input
+                value={form[f.key] || ''}
+                onChange={set(f.key)}
+                placeholder={f.placeholder || ''}
+                required={!editing && f.required}
+                type={isSecret(f.key) ? 'password' : 'text'}
+              />
+            </Field>
+          ))}
         {error && <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">{error}</div>}
         <div className="flex justify-end gap-2 pt-1">
           <Button variant="ghost" onClick={onClose}>取消</Button>
-          <Button variant="primary" onClick={submit} disabled={saving || fields.length === 0}>
+          <Button variant="primary" onClick={submit} disabled={saving || loading || fields.length === 0}>
             {saving ? '保存中…' : '保存'}
           </Button>
         </div>
