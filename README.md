@@ -68,6 +68,26 @@ npm start         # 启动服务，访问 http://127.0.0.1:57891
 
 ## 部署
 
+### 飞牛 NAS / Docker（推荐）
+
+项目自带 `Dockerfile`（多阶段构建，内配 npmmirror 国内源）和 `docker-compose.yml`：
+
+1. 把整个项目文件夹上传到 NAS（**不要带 node_modules**，可先在本机删掉或打包时排除），
+   例如放到 `/vol1/1000/docker/checkin-hub`
+2. 飞牛桌面打开 **Docker → 项目 → 创建项目**，路径选择该文件夹（会自动识别 `docker-compose.yml`），确定后自动构建启动
+3. 浏览器访问 `http://NAS_IP:57891`
+4. 首次使用：进「账号管理」添加各平台账号，再建签到任务
+
+要点：
+
+- 账号凭据、任务、记录、设置都在映射目录 `./data` 中，**升级只需更新代码重新构建**，数据不丢
+- 时区已设为 Asia/Shanghai，"每天 09:00" 按北京时间执行
+- NAS 若无法直连被污染站点（如 agentrouter.org），两种方式二选一：
+  - compose 里取消注释 `AGENTROUTER_PROXY` 环境变量，指向局域网内可用的代理（如你本机的 `http://192.168.31.32:7890`）
+  - 或部署后在网页「设置」里填代理地址（推荐，改起来方便）
+
+### Windows 本机
+
 Windows 用 pm2 或 NSSM 注册为常驻服务；Linux 用 systemd：
 
 ```ini

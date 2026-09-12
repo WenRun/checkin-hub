@@ -1,0 +1,15 @@
+services:
+  checkin-hub:
+    build: .
+    container_name: checkin-hub
+    restart: unless-stopped
+    ports:
+      - "57891:57891"
+    environment:
+      - TZ=Asia/Shanghai
+      # AgentRouter 等被 DNS 污染站点的代理（也可部署后在网页「设置」里配置，二选一）
+      # 局域网内有代理时示例：http://192.168.31.32:7890
+      # - AGENTROUTER_PROXY=http://192.168.31.32:7890
+    volumes:
+      # 账号凭据、任务、执行记录、设置全部在这里，升级镜像不丢数据
+      - ./data:/app/data
