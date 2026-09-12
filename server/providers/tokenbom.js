@@ -478,17 +478,24 @@ async function getCredits(account) {
   const balance = Number(data.balance ?? data.credits ?? data.remaining ?? resp.balance ?? 0);
   const status = isSuccess(statusRes.resp) ? unwrap(statusRes.resp) || {} : {};
   const streak = Number(status.currentStreak ?? status.current_streak) || null;
+  const tomorrowReward = status.tomorrowReward ?? status.tomorrow_reward ?? null;
+  const makeupCards = Number(status.makeupCards ?? status.makeup_cards ?? 0) || 0;
+  const todayCheckedIn = status.todayCheckedIn === true;
   return {
     ...base,
     ok: true,
     kind: 'balance',
     balance: Math.round(balance * 100) / 100,
     totalRemaining: Math.round(balance * 100) / 100,
-    streak,
-    todayCheckedIn: status.todayCheckedIn === true,
-    tomorrowReward: status.tomorrowReward ?? status.tomorrow_reward ?? null,
-    requiresCallToday: status.requiresCallToday === true,
-    makeupCards: Number(status.makeupCards ?? status.makeup_cards ?? 0) || 0,
+    balanceLabel: '积分余额',
+    badge: todayCheckedIn
+      ? { text: '今日已签到', tone: 'sky' }
+      : { text: '今日未签到', tone: 'amber' },
+    stats: [
+      { label: '连签天数', value: streak ? `${streak} 天` : '—' },
+      { label: '明日签到可得', value: tomorrowReward ? `+${tomorrowReward}` : '—' },
+      { label: '补签卡', value: makeupCards },
+    ],
   };
 }
 

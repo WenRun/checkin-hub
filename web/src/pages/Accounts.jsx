@@ -505,7 +505,9 @@ export default function Accounts() {
               {siteAccounts.map((a) => (
                 <tr key={a.id} className="hover:bg-panel-2/60">
                   <td className="px-5 py-3">
-                    <div className="font-medium text-zinc-200">{a.email || a.nickname || a.uid || a.id}</div>
+                    <div className="font-medium text-zinc-200">
+                      {a.email || a.username || a.nickname || a.uid || a.id}
+                    </div>
                     <div className="mt-0.5 text-xs text-zinc-500">
                       {a.nickname && a.email && a.nickname !== a.email ? `${a.nickname} · ` : ''}
                       {a.provider}

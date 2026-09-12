@@ -362,15 +362,22 @@ async function getCredits(account) {
       return { ...base, ok: false, error: extractError({ message: resp.json?.message || resp.text, httpStatus: resp.httpStatus }) };
     }
     const user = resp.json.data || {};
+    // New API 原始 quota 按标准 500000 = $1 换算为美元展示（与控制台显示口径一致）
     const quota = Number(user.quota ?? 0);
+    const usedQuota = Number(user.used_quota ?? 0);
+    const toUsd = (q) => Math.round((q / 500000) * 100) / 100;
     return {
       ...base,
       ok: true,
       kind: 'balance',
-      balance: quota,
-      totalRemaining: quota,
-      todayCheckedIn: user.checked_in === true,
-      usedQuota: Number(user.used_quota ?? 0) || 0,
+      balance: toUsd(quota),
+      totalRemaining: toUsd(quota),
+      balanceLabel: '剩余额度（$）',
+      footnote: `原始 quota：${quota.toLocaleString('zh-CN')}（按 500000 quota = $1 换算）`,
+      stats: [
+        { label: '已用额度（$）', value: toUsd(usedQuota) },
+        { label: '请求次数', value: user.request_count ?? '—' },
+      ],
     };
   } catch (e) {
     return { ...base, ok: false, error: e.message };

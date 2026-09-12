@@ -63,16 +63,23 @@ export function AccountCreditsCard({ data }) {
     );
   }
 
-  // 余额形态（如 TokenBom：单一积分余额，签到赚分、调用耗分）
+  // 余额形态（provider 返回 balance/balanceLabel/可选 badge/stats/footnote，按各自积分模型组装）
   if (data.kind === 'balance') {
+    const badge = data.badge;
     return (
       <Card className="p-5">
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-zinc-200">{data.accountName}</span>
-          {data.todayCheckedIn ? (
-            <Badge className="border-sky-500/30 bg-sky-500/10 text-sky-400">今日已签到</Badge>
-          ) : (
-            <Badge className="border-amber-500/30 bg-amber-500/10 text-amber-400">今日未签到</Badge>
+          {badge && (
+            <Badge
+              className={
+                badge.tone === 'sky'
+                  ? 'border-sky-500/30 bg-sky-500/10 text-sky-400'
+                  : 'border-amber-500/30 bg-amber-500/10 text-amber-400'
+              }
+            >
+              {badge.text}
+            </Badge>
           )}
         </div>
         <div className="mt-3 flex items-end justify-between">
@@ -83,33 +90,23 @@ export function AccountCreditsCard({ data }) {
                 {fmtAmount(data.balance ?? data.totalRemaining)}
               </span>
             </div>
-            <div className="mt-1 text-xs text-zinc-500">
-              {data.balanceLabel || '积分余额'}
-              {data.balanceLabel === '积分余额' ? ' · 签到赚分，调用模型消耗' : ''}
-            </div>
+            <div className="mt-1 text-xs text-zinc-500">{data.balanceLabel || '积分余额'}</div>
           </div>
           <span className="text-xs text-zinc-600">{fmtTime(data.updatedAt).slice(5, 16)} 更新</span>
         </div>
-        <div className="mt-4 grid grid-cols-3 gap-2 border-t border-line pt-3 text-center">
-          <div>
-            <div className="text-sm font-semibold text-emerald-400">
-              {data.streak ? `${data.streak} 天` : '—'}
-            </div>
-            <div className="mt-0.5 text-xs text-zinc-500">连签天数</div>
+        {Array.isArray(data.stats) && data.stats.length > 0 && (
+          <div className="mt-4 grid grid-cols-3 gap-2 border-t border-line pt-3 text-center">
+            {data.stats.map((s) => (
+              <div key={s.label}>
+                <div className="text-sm font-semibold text-zinc-100">{s.value}</div>
+                <div className="mt-0.5 text-xs text-zinc-500">{s.label}</div>
+              </div>
+            ))}
           </div>
-          <div>
-            <div className="text-sm font-semibold text-zinc-100">
-              {data.tomorrowReward ? `+${data.tomorrowReward}` : '—'}
-            </div>
-            <div className="mt-0.5 text-xs text-zinc-500">明日签到可得</div>
-          </div>
-          <div>
-            <div className="text-sm font-semibold text-zinc-100">
-              {data.makeupCards != null ? data.makeupCards : '—'}
-            </div>
-            <div className="mt-0.5 text-xs text-zinc-500">补签卡</div>
-          </div>
-        </div>
+        )}
+        {data.footnote && (
+          <div className="mt-3 border-t border-line pt-2 text-xs text-zinc-600">{data.footnote}</div>
+        )}
       </Card>
     );
   }
