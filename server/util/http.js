@@ -16,14 +16,18 @@ async function httpRequest(url, { method = 'GET', body, headers = {}, timeoutMs 
     });
     const text = await resp.text();
     try {
-      return JSON.parse(text);
+      const data = JSON.parse(text);
+      if (data && typeof data === 'object' && data.httpStatus === undefined) {
+        data.httpStatus = resp.status;
+      }
+      return data;
     } catch {
       // 网关层错误常返回 HTML 页面，截取标题保持记录可读
       const title = /<title>(.*?)<\/title>/i.exec(text);
       const message = title
         ? title[1]
         : text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
-      return { code: resp.status, message: `HTTP ${resp.status} ${message}`.trim() };
+      return { code: resp.status, httpStatus: resp.status, message: `HTTP ${resp.status} ${message}`.trim() };
     }
   } catch (e) {
     return { code: -1, message: e.name === 'AbortError' ? `请求超时(${timeoutMs}ms)` : e.message };

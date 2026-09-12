@@ -65,6 +65,7 @@ export const RESULT_META = {
   already: { label: '已签到', cls: 'bg-sky-500/15 text-sky-400 border-sky-500/30' },
   error: { label: '失败', cls: 'bg-red-500/15 text-red-400 border-red-500/30' },
   partial: { label: '部分成功', cls: 'bg-amber-500/15 text-amber-400 border-amber-500/30' },
+  skipped: { label: '需人工', cls: 'bg-zinc-500/15 text-zinc-400 border-zinc-500/30' },
 };
 
 export function ResultBadge({ result }) {

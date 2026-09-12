@@ -470,6 +470,27 @@ function oauthDebug() {
   }));
 }
 
+// 账号手动添加表单字段声明（前端按此渲染）
+const manualFields = [
+  {
+    key: 'access_token',
+    label: 'access_token（必填）',
+    required: true,
+    hint: '抓包 codebuddy.cn 请求头 Authorization Bearer 后面的值',
+    placeholder: 'eyJhbGci...',
+  },
+  {
+    key: 'refresh_token',
+    label: 'refresh_token（建议填写）',
+    required: false,
+    hint: '用于 token 过期后自动续期，长期保活必备',
+  },
+  { key: 'email', label: '邮箱（选填，用于展示）', required: false },
+  { key: 'uid', label: 'UID（选填）', required: false },
+  { key: 'enterpriseId', label: 'enterpriseId（企业账号选填）', required: false },
+  { key: 'domain', label: 'domain（选填）', required: false },
+];
+
 module.exports = {
   id: 'workbuddy',
   name: 'WorkBuddy（腾讯 AI 编程助手）',
@@ -483,5 +504,6 @@ module.exports = {
   oauthPoll,
   oauthDebug,
   getCredits: (account) => credits.getCredits(module.exports, account),
+  manualFields,
   buildAuthHeaders,
 };

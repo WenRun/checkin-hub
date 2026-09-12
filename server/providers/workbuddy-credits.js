@@ -409,6 +409,7 @@ function creditResult(provider, account, resources, now) {
     ok: true,
     accountId: account.id ?? null,
     accountName: provider.displayName(account),
+    provider: account.provider ?? 'workbuddy',
     updatedAt: now,
     totalCapacity,
     totalRemaining: Math.round(totalRemaining * 100) / 100,

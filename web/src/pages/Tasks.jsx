@@ -21,6 +21,10 @@ const emptyForm = {
   expression: '0 9 * * *',
   jitterMinutes: 0,
   enabled: true,
+  // TokenBom 专属选项
+  autoCall: true,
+  autoMakeup: true,
+  callModel: 'glm-5.3-flash',
 };
 
 function toPayload(form) {
@@ -30,7 +34,7 @@ function toPayload(form) {
       : form.scheduleType === 'interval'
         ? { type: 'interval', everyMinutes: Number(form.everyMinutes) }
         : { type: 'cron', expression: form.expression.trim() };
-  return {
+  const payload = {
     name: form.name,
     site: form.site,
     accountId: form.accountId,
@@ -38,6 +42,14 @@ function toPayload(form) {
     jitterMinutes: Number(form.jitterMinutes) || 0,
     enabled: form.enabled,
   };
+  if (form.site === 'tokenbom') {
+    payload.providerOptions = {
+      autoCall: !!form.autoCall,
+      autoMakeup: !!form.autoMakeup,
+      callModel: form.callModel,
+    };
+  }
+  return payload;
 }
 
 function TaskFormDialog({ open, onClose, onSaved, providers, accounts, editing }) {
@@ -50,6 +62,7 @@ function TaskFormDialog({ open, onClose, onSaved, providers, accounts, editing }
     setError('');
     if (editing) {
       const s = editing.schedule || {};
+      const po = editing.providerOptions || {};
       setForm({
         name: editing.name,
         site: editing.site,
@@ -60,6 +73,9 @@ function TaskFormDialog({ open, onClose, onSaved, providers, accounts, editing }
         expression: s.expression || '0 9 * * *',
         jitterMinutes: editing.jitterMinutes || 0,
         enabled: editing.enabled,
+        autoCall: po.autoCall !== false,
+        autoMakeup: po.autoMakeup !== false,
+        callModel: po.callModel || 'glm-5.3-flash',
       });
     } else {
       setForm(emptyForm);
@@ -147,6 +163,30 @@ function TaskFormDialog({ open, onClose, onSaved, providers, accounts, editing }
           <Field label="Cron 表达式" hint="分 时 日 月 周，例如 30 8 * * 1-5 表示工作日 08:30">
             <Input value={form.expression} onChange={set('expression')} />
           </Field>
+        )}
+
+        {form.site === 'tokenbom' && (
+          <>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="前置自动调用" hint="签到日要求当天先有一次成功 API 调用时，自动用虚拟 Key 发最小调用（消耗少量积分）">
+                <div className="flex h-9 items-center gap-2">
+                  <Switch checked={form.autoCall} onChange={(v) => setForm((f) => ({ ...f, autoCall: v }))} />
+                  <span className="text-sm text-zinc-400">{form.autoCall ? '启用' : '关闭（届时转人工）'}</span>
+                </div>
+              </Field>
+              <Field label="自动补签" hint="发现漏签且账号有补签卡时自动补签">
+                <div className="flex h-9 items-center gap-2">
+                  <Switch checked={form.autoMakeup} onChange={(v) => setForm((f) => ({ ...f, autoMakeup: v }))} />
+                  <span className="text-sm text-zinc-400">{form.autoMakeup ? '启用' : '关闭'}</span>
+                </div>
+              </Field>
+            </div>
+            {form.autoCall && (
+              <Field label="自动调用模型" hint="选平台最便宜的模型即可，max_tokens 固定为 1">
+                <Input value={form.callModel} onChange={set('callModel')} placeholder="glm-5.3-flash" />
+              </Field>
+            )}
+          </>
         )}
 
         <div className="grid grid-cols-2 gap-4">

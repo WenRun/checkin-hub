@@ -63,6 +63,34 @@ export function AccountCreditsCard({ data }) {
     );
   }
 
+  // 余额形态（如 TokenBom：单一积分余额，无积分包）
+  if (data.kind === 'balance') {
+    return (
+      <Card className="p-5">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium text-zinc-200">{data.accountName}</span>
+          {data.streak ? (
+            <Badge className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
+              连签 {data.streak} 天
+            </Badge>
+          ) : null}
+        </div>
+        <div className="mt-3 flex items-end justify-between">
+          <div>
+            <div className="flex items-baseline gap-1.5">
+              <Coins size={18} className="text-emerald-400" />
+              <span className="text-3xl font-semibold tracking-tight text-zinc-100">
+                {fmtAmount(data.balance ?? data.totalRemaining)}
+              </span>
+            </div>
+            <div className="mt-1 text-xs text-zinc-500">积分余额</div>
+          </div>
+          <span className="text-xs text-zinc-600">{fmtTime(data.updatedAt).slice(5, 16)} 更新</span>
+        </div>
+      </Card>
+    );
+  }
+
   const usable = data.resources
     .filter((r) => r.remaining > 0 && !r.expired && r.expireAt)
     .sort((a, b) => a.expireAt - b.expireAt);
@@ -125,8 +153,8 @@ export function AccountCreditsCard({ data }) {
   );
 }
 
-// 嵌入账号管理页的积分概况区块
-export function CreditsSection() {
+// 嵌入账号管理页的积分概况区块（site 传入时只显示该平台的账号）
+export function CreditsSection({ site }) {
   const [list, setList] = useState(null);
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -134,7 +162,8 @@ export function CreditsSection() {
   const load = useCallback(async () => {
     setRefreshing(true);
     try {
-      const data = await api.credits();
+      let data = await api.credits();
+      if (site) data = data.filter((item) => item.provider === site || !item.provider);
       setList(data);
       setError('');
     } catch (e) {
@@ -142,7 +171,7 @@ export function CreditsSection() {
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [site]);
 
   useEffect(() => {
     load();

@@ -24,14 +24,15 @@ app.get('/api/accounts', (_req, res) => {
 });
 
 app.post('/api/accounts', async (req, res) => {
-  const { provider = 'workbuddy', access_token, ...rest } = req.body || {};
-  if (!getProvider(provider)) return res.status(400).json({ error: '未知的站点类型' });
+  const { provider: providerId = 'workbuddy', access_token, ...rest } = req.body || {};
+  const provider = getProvider(providerId);
+  if (!provider) return res.status(400).json({ error: '未知的站点类型' });
   if (!access_token || !String(access_token).trim()) {
     return res.status(400).json({ error: 'access_token 不能为空' });
   }
   const account = {
     id: crypto.randomUUID(),
-    provider,
+    provider: providerId,
     access_token: String(access_token).trim(),
     refresh_token: rest.refresh_token ? String(rest.refresh_token).trim() : '',
     uid: rest.uid || '',
@@ -43,6 +44,15 @@ app.post('/api/accounts', async (req, res) => {
     refreshExpiresAt: Number(rest.refreshExpiresAt) || null,
     createdAt: Date.now(),
   };
+  // provider 声明的扩展字段（如 tokenbom 的 virtual_key）透传保存
+  const handled = new Set([
+    'provider', 'access_token', 'refresh_token', 'uid', 'email', 'nickname',
+    'enterpriseId', 'domain', 'expiresAt', 'refreshExpiresAt',
+  ]);
+  for (const f of provider.manualFields || []) {
+    if (handled.has(f.key)) continue;
+    if (rest[f.key] !== undefined) account[f.key] = String(rest[f.key]).trim();
+  }
   store.upsertAccount(account);
   res.json(store.accountMeta(account));
 });
@@ -137,6 +147,16 @@ function validateSchedule(schedule) {
   return { error: 'schedule.type 必须是 daily / interval / cron' };
 }
 
+// provider 专属任务选项（如 tokenbom 的 autoCall/autoMakeup/callModel）
+function sanitizeProviderOptions(po) {
+  if (!po || typeof po !== 'object') return undefined;
+  return {
+    autoCall: po.autoCall !== false,
+    autoMakeup: po.autoMakeup !== false,
+    callModel: typeof po.callModel === 'string' ? po.callModel.trim().slice(0, 80) : '',
+  };
+}
+
 app.get('/api/tasks', (_req, res) => {
   res.json(store.loadTasks());
 });
@@ -148,6 +168,7 @@ app.post('/api/tasks', (req, res) => {
   if (!getProvider(site)) return res.status(400).json({ error: '未知的站点类型' });
   const { schedule, error } = validateSchedule(req.body?.schedule);
   if (error) return res.status(400).json({ error });
+  const po = sanitizeProviderOptions(req.body?.providerOptions);
   const task = {
     id: crypto.randomUUID(),
     name: String(name).trim(),
@@ -156,6 +177,7 @@ app.post('/api/tasks', (req, res) => {
     enabled: !!enabled,
     schedule,
     jitterMinutes: Math.max(0, Number(jitterMinutes) || 0),
+    ...(po ? { providerOptions: po } : {}),
     createdAt: Date.now(),
     lastRunAt: null,
     lastResult: null,
@@ -183,6 +205,11 @@ app.put('/api/tasks/:id', (req, res) => {
     const { schedule, error } = validateSchedule(body.schedule);
     if (error) return res.status(400).json({ error });
     task.schedule = schedule;
+  }
+  if (body.providerOptions !== undefined) {
+    const po = sanitizeProviderOptions(body.providerOptions);
+    if (po) task.providerOptions = po;
+    else delete task.providerOptions;
   }
   scheduler.reschedule(task);
   res.json(task);

@@ -124,16 +124,19 @@ function OAuthDialog({ open, onClose, onSaved, provider }) {
   );
 }
 
-// ---------- 手动添加账号弹窗 ----------
+// ---------- 手动添加账号弹窗（字段由 provider 的 manualFields 动态渲染） ----------
+
+const SECRET_HINTS = ['token', 'key'];
 
 function AccountFormDialog({ open, onClose, onSaved, provider }) {
-  const [form, setForm] = useState({ access_token: '', refresh_token: '', email: '', uid: '', enterpriseId: '', domain: '' });
+  const fields = provider?.manualFields || [];
+  const [form, setForm] = useState({});
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (open) {
-      setForm({ access_token: '', refresh_token: '', email: '', uid: '', enterpriseId: '', domain: '' });
+      setForm({});
       setError('');
     }
   }, [open]);
@@ -157,32 +160,22 @@ function AccountFormDialog({ open, onClose, onSaved, provider }) {
   return (
     <Modal open={open} onClose={onClose} title={`添加账号 · ${provider?.name || ''}`}>
       <div className="space-y-4">
-        <Field label="access_token（必填）" hint="从该站点登录后的请求头 Authorization Bearer 中获取">
-          <Input value={form.access_token} onChange={set('access_token')} placeholder="eyJhbGci..." />
-        </Field>
-        <Field label="refresh_token（建议填写）" hint="用于 token 过期后自动续期，长期保活必备">
-          <Input value={form.refresh_token} onChange={set('refresh_token')} />
-        </Field>
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="邮箱（选填，用于展示）">
-            <Input value={form.email} onChange={set('email')} />
+        {fields.length === 0 && <Empty text="该平台暂未配置账号表单" />}
+        {fields.map((f) => (
+          <Field key={f.key} label={f.label} hint={f.hint}>
+            <Input
+              value={form[f.key] || ''}
+              onChange={set(f.key)}
+              placeholder={f.placeholder || ''}
+              required={f.required}
+              type={SECRET_HINTS.some((s) => f.key.toLowerCase().includes(s)) ? 'password' : 'text'}
+            />
           </Field>
-          <Field label="UID（选填）">
-            <Input value={form.uid} onChange={set('uid')} />
-          </Field>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="enterpriseId（企业账号选填）">
-            <Input value={form.enterpriseId} onChange={set('enterpriseId')} />
-          </Field>
-          <Field label="domain（选填）">
-            <Input value={form.domain} onChange={set('domain')} />
-          </Field>
-        </div>
+        ))}
         {error && <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">{error}</div>}
         <div className="flex justify-end gap-2 pt-1">
           <Button variant="ghost" onClick={onClose}>取消</Button>
-          <Button variant="primary" onClick={submit} disabled={saving}>
+          <Button variant="primary" onClick={submit} disabled={saving || fields.length === 0}>
             {saving ? '保存中…' : '保存'}
           </Button>
         </div>
@@ -392,7 +385,7 @@ export default function Accounts() {
 
       {caps.credits && (
         <Card className="p-5">
-          <CreditsSection />
+          <CreditsSection site={active.id} />
         </Card>
       )}
 

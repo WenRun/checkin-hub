@@ -100,7 +100,7 @@ async function runTask(task, trigger = 'auto') {
         const t0 = Date.now();
         let outcome;
         try {
-          outcome = await provider.checkin(account);
+          outcome = await provider.checkin(account, task.providerOptions || {});
         } catch (e) {
           outcome = { result: 'error', message: e.message };
         }
