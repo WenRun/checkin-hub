@@ -455,6 +455,7 @@ async function checkin(account, options = {}) {
 
 // ---------- 积分余额 ----------
 
+// 余额 + 签到状态（连签/明日奖励/补签卡），反映 TokenBom "签到赚分、调用耗分" 的模型
 async function getCredits(account) {
   const base = {
     accountId: account.id ?? null,
@@ -464,15 +465,18 @@ async function getCredits(account) {
     kind: 'balance',
     resources: [],
   };
-  const { resp } = await authedRequest(account, '/credits');
+  const [creditsRes, statusRes] = await Promise.all([
+    authedRequest(account, '/credits'),
+    authedRequest(account, '/checkin/status'),
+  ]);
+  const { resp } = creditsRes;
   if (!isSuccess(resp)) {
     return { ...base, ok: false, error: extractError(resp) };
   }
   const data = unwrap(resp) || {};
-  const balance = Number(
-    data.balance ?? data.credits ?? data.remaining ?? resp.balance ?? 0,
-  );
-  const streak = Number(data.currentStreak ?? data.current_streak) || null;
+  const balance = Number(data.balance ?? data.credits ?? data.remaining ?? resp.balance ?? 0);
+  const status = isSuccess(statusRes.resp) ? unwrap(statusRes.resp) || {} : {};
+  const streak = Number(status.currentStreak ?? status.current_streak) || null;
   return {
     ...base,
     ok: true,
@@ -480,6 +484,10 @@ async function getCredits(account) {
     balance: Math.round(balance * 100) / 100,
     totalRemaining: Math.round(balance * 100) / 100,
     streak,
+    todayCheckedIn: status.todayCheckedIn === true,
+    tomorrowReward: status.tomorrowReward ?? status.tomorrow_reward ?? null,
+    requiresCallToday: status.requiresCallToday === true,
+    makeupCards: Number(status.makeupCards ?? status.makeup_cards ?? 0) || 0,
   };
 }
 
@@ -532,6 +540,7 @@ module.exports = {
   reloginWithCaptcha,
   captchaStart,
   getCredits,
+  creditsHint: 'TokenBom 为单一积分余额：每日签到赚积分，调用模型消耗。卡片展示余额、连签天数与今日签到状态',
   manualFields,
   buildAuthHeaders,
 };

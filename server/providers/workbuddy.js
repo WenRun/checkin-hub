@@ -504,6 +504,7 @@ module.exports = {
   oauthPoll,
   oauthDebug,
   getCredits: (account) => credits.getCredits(module.exports, account),
+  creditsHint: '每个账号的积分余额与积分包到期情况，7 天内到期的会标红提醒，优先用完',
   manualFields,
   buildAuthHeaders,
 };

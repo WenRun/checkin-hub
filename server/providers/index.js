@@ -21,6 +21,8 @@ function listProviders() {
     siteUrl: p.siteUrl,
     // 账号手动添加表单的字段声明（前端按此动态渲染）
     manualFields: Array.isArray(p.manualFields) ? p.manualFields : null,
+    // 积分概况区块的说明文案（按平台积分模型定制）
+    creditsHint: typeof p.creditsHint === 'string' ? p.creditsHint : null,
     // 前端据此决定各平台子菜单里展示哪些操作入口
     capabilities: {
       oauth: typeof p.oauthStart === 'function',

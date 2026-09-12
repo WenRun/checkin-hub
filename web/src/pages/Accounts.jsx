@@ -580,7 +580,7 @@ export default function Accounts() {
 
       {caps.credits && (
         <Card className="p-5">
-          <CreditsSection site={active.id} />
+          <CreditsSection site={active.id} hint={active.creditsHint} />
         </Card>
       )}
 

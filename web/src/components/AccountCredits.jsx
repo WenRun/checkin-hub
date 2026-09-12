@@ -63,17 +63,17 @@ export function AccountCreditsCard({ data }) {
     );
   }
 
-  // 余额形态（如 TokenBom：单一积分余额，无积分包）
+  // 余额形态（如 TokenBom：单一积分余额，签到赚分、调用耗分）
   if (data.kind === 'balance') {
     return (
       <Card className="p-5">
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-zinc-200">{data.accountName}</span>
-          {data.streak ? (
-            <Badge className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
-              连签 {data.streak} 天
-            </Badge>
-          ) : null}
+          {data.todayCheckedIn ? (
+            <Badge className="border-sky-500/30 bg-sky-500/10 text-sky-400">今日已签到</Badge>
+          ) : (
+            <Badge className="border-amber-500/30 bg-amber-500/10 text-amber-400">今日未签到</Badge>
+          )}
         </div>
         <div className="mt-3 flex items-end justify-between">
           <div>
@@ -83,9 +83,29 @@ export function AccountCreditsCard({ data }) {
                 {fmtAmount(data.balance ?? data.totalRemaining)}
               </span>
             </div>
-            <div className="mt-1 text-xs text-zinc-500">积分余额</div>
+            <div className="mt-1 text-xs text-zinc-500">积分余额 · 签到赚分，调用模型消耗</div>
           </div>
           <span className="text-xs text-zinc-600">{fmtTime(data.updatedAt).slice(5, 16)} 更新</span>
+        </div>
+        <div className="mt-4 grid grid-cols-3 gap-2 border-t border-line pt-3 text-center">
+          <div>
+            <div className="text-sm font-semibold text-emerald-400">
+              {data.streak ? `${data.streak} 天` : '—'}
+            </div>
+            <div className="mt-0.5 text-xs text-zinc-500">连签天数</div>
+          </div>
+          <div>
+            <div className="text-sm font-semibold text-zinc-100">
+              {data.tomorrowReward ? `+${data.tomorrowReward}` : '—'}
+            </div>
+            <div className="mt-0.5 text-xs text-zinc-500">明日签到可得</div>
+          </div>
+          <div>
+            <div className="text-sm font-semibold text-zinc-100">
+              {data.makeupCards != null ? data.makeupCards : '—'}
+            </div>
+            <div className="mt-0.5 text-xs text-zinc-500">补签卡</div>
+          </div>
         </div>
       </Card>
     );
@@ -153,8 +173,8 @@ export function AccountCreditsCard({ data }) {
   );
 }
 
-// 嵌入账号管理页的积分概况区块（site 传入时只显示该平台的账号）
-export function CreditsSection({ site }) {
+// 嵌入账号管理页的积分概况区块（site 传入时只显示该平台的账号；hint 由 provider 按其积分模型提供）
+export function CreditsSection({ site, hint }) {
   const [list, setList] = useState(null);
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -185,7 +205,7 @@ export function CreditsSection({ site }) {
         <div>
           <h3 className="text-sm font-semibold text-zinc-100">积分概况</h3>
           <p className="mt-0.5 text-xs text-zinc-500">
-            每个账号的积分余额与积分包到期情况，7 天内到期的会标红提醒，优先用完
+            {hint || '各账号的积分情况'}
           </p>
         </div>
         <Button size="sm" onClick={load} disabled={refreshing}>
