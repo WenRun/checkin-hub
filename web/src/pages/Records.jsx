@@ -53,7 +53,7 @@ export default function Records() {
         ) : records.length === 0 ? (
           <Empty text="暂无执行记录" />
         ) : (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto"><table className="w-full min-w-[680px] text-sm">
             <thead>
               <tr className="border-b border-line text-left text-xs text-zinc-500">
                 <th className="px-5 py-3 font-medium">时间</th>
@@ -80,7 +80,7 @@ export default function Records() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </Card>
     </div>

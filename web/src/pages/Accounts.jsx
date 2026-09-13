@@ -491,7 +491,7 @@ export default function Accounts() {
         {siteAccounts.length === 0 ? (
           <Empty text={`还没有 ${active?.name || ''} 账号。${caps.oauth ? '推荐点「扫码登录」直接登录添加；' : ''}${caps.importLocal ? '本机装了客户端也可以「从本机导入」；' : ''}或「手动添加」填入 token`} />
         ) : (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto"><table className="w-full min-w-[680px] text-sm">
             <thead>
               <tr className="border-b border-line text-left text-xs text-zinc-500">
                 <th className="px-5 py-3 font-medium">账号</th>
@@ -564,7 +564,7 @@ export default function Accounts() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </Card>
 

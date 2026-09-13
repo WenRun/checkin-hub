@@ -229,7 +229,7 @@ function RecordsDialog({ task, onClose }) {
       {records.length === 0 ? (
         <Empty text="该任务还没有执行记录" />
       ) : (
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto"><table className="w-full min-w-[680px] text-sm">
           <thead>
             <tr className="text-left text-xs text-zinc-500">
               <th className="pb-2 font-medium">时间</th>
@@ -248,7 +248,7 @@ function RecordsDialog({ task, onClose }) {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       )}
     </Modal>
   );
