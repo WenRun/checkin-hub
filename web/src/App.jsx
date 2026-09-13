@@ -6,6 +6,8 @@ import {
   ScrollText,
   CalendarClock,
   Settings as SettingsIcon,
+  Menu,
+  X,
 } from 'lucide-react';
 import Dashboard from './pages/Dashboard.jsx';
 import Tasks from './pages/Tasks.jsx';
@@ -23,43 +25,58 @@ const NAV = [
 
 export default function App() {
   const [page, setPage] = useState('dashboard');
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const navItems = NAV.map(({ id, label, icon: Icon }) => ({
     id,
     label,
     Icon,
     active: page === id,
-    onClick: () => setPage(id),
+    onClick: () => {
+      setPage(id);
+      setMenuOpen(false);
+    },
   }));
 
   return (
     <div className="flex h-full flex-col md:flex-row">
-      {/* 移动端顶栏 + 横向导航 */}
-      <header className="flex items-center gap-2.5 border-b border-line bg-panel px-4 py-3 md:hidden">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600/15 text-emerald-400">
-          <CalendarClock size={18} />
+      {/* 移动端顶栏：标题 + 菜单按钮（点击展开导航） */}
+      <header className="flex items-center justify-between border-b border-line bg-panel px-4 py-3 md:hidden">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600/15 text-emerald-400">
+            <CalendarClock size={18} />
+          </div>
+          <div>
+            <div className="text-sm font-semibold text-zinc-100">Checkin Hub</div>
+            <div className="text-xs text-zinc-500">自动签到任务中心</div>
+          </div>
         </div>
-        <div>
-          <div className="text-sm font-semibold text-zinc-100">Checkin Hub</div>
-          <div className="text-xs text-zinc-500">自动签到任务中心</div>
-        </div>
+        <button
+          onClick={() => setMenuOpen(!menuOpen)}
+          aria-label="菜单"
+          className="rounded-lg border border-line bg-panel-2 p-2 text-zinc-300 transition-colors active:bg-zinc-700/40"
+        >
+          {menuOpen ? <X size={18} /> : <Menu size={18} />}
+        </button>
       </header>
-      <nav className="flex gap-1 overflow-x-auto border-b border-line bg-panel px-3 py-2 md:hidden">
-        {navItems.map(({ id, label, Icon, active, onClick }) => (
-          <button
-            key={id}
-            onClick={onClick}
-            className={`flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs transition-colors ${
-              active
-                ? 'bg-emerald-600/15 font-medium text-emerald-400'
-                : 'text-zinc-400 hover:bg-zinc-700/30'
-            }`}
-          >
-            <Icon size={14} />
-            {label}
-          </button>
-        ))}
-      </nav>
+      {menuOpen && (
+        <nav className="border-b border-line bg-panel px-3 py-2 md:hidden">
+          {navItems.map(({ id, label, Icon, active, onClick }) => (
+            <button
+              key={id}
+              onClick={onClick}
+              className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm transition-colors ${
+                active
+                  ? 'bg-emerald-600/15 font-medium text-emerald-400'
+                  : 'text-zinc-300 hover:bg-zinc-700/30'
+              }`}
+            >
+              <Icon size={16} />
+              {label}
+            </button>
+          ))}
+        </nav>
+      )}
 
       {/* 桌面端侧边栏 */}
       <aside className="hidden w-56 shrink-0 flex-col border-r border-line bg-panel md:flex">
