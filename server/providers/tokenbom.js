@@ -296,28 +296,54 @@ async function reloginWithCaptcha(account, { captchaId, captchaX, captchaElapsed
 async function makeGatewayCall(account, callModel) {
   const key = getStr(account, 'virtual_key');
   if (!key) return { ok: false, error: '账号未配置虚拟 Key，无法自动调用' };
-  const resp = await httpRequest(`${GATEWAY_BASE}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${key}`,
-      'Content-Type': 'application/json',
-    },
-    body: {
-      model: callModel || DEFAULT_CALL_MODEL,
-      messages: [{ role: 'user', content: 'hi' }],
-      max_tokens: 1,
-      stream: false,
-    },
-    timeoutMs: 30000,
-  });
-  const ok =
-    resp &&
-    typeof resp === 'object' &&
-    (resp.httpStatus === 200 ||
-      (resp.choices && Array.isArray(resp.choices)) ||
-      (resp.id && resp.object === 'chat.completion'));
-  if (ok) return { ok: true };
-  return { ok: false, error: `网关调用失败: ${extractError(resp)}` };
+
+  const tryModel = async (model) => {
+    const resp = await httpRequest(`${GATEWAY_BASE}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${key}`,
+        'Content-Type': 'application/json',
+      },
+      body: {
+        model,
+        messages: [{ role: 'user', content: 'hi' }],
+        max_tokens: 1,
+        stream: false,
+      },
+      timeoutMs: 30000,
+    });
+    const ok =
+      resp &&
+      typeof resp === 'object' &&
+      (resp.httpStatus === 200 ||
+        (resp.choices && Array.isArray(resp.choices)) ||
+        (resp.id && resp.object === 'chat.completion'));
+    return ok ? { ok: true } : { ok: false, error: `网关调用失败: ${extractError(resp)}` };
+  };
+
+  // 第一次用任务配置的模型；若被 Key 的模型白名单拒绝（403 会列出已授权模型），
+  // 自动改用已授权模型重试
+  let result = await tryModel(callModel || DEFAULT_CALL_MODEL);
+  if (result.ok) return result;
+
+  const authorized = /已授权的模型[:：]\s*(.+)/.exec(result.error || '');
+  if (authorized) {
+    const candidates = authorized[1]
+      .split(/[,，、\s]+/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, 3);
+    for (const model of candidates) {
+      const retry = await tryModel(model);
+      if (retry.ok) return retry;
+      result = retry;
+    }
+    return {
+      ok: false,
+      error: `已按该 Key 授权模型（${candidates.join('、')}）重试仍失败: ${result.error}`,
+    };
+  }
+  return result;
 }
 
 // ---------- 自动补签 ----------
