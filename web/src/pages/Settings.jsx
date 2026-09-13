@@ -42,7 +42,7 @@ export default function Settings() {
   if (error && !settings) return <Empty text={`加载失败: ${error}`} />;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 p-6">
+    <div className="mx-auto max-w-3xl space-y-4 p-4 md:space-y-6 md:p-6">
       <div>
         <h2 className="text-lg font-semibold text-zinc-100">设置</h2>
         <p className="mt-0.5 text-sm text-zinc-500">全局配置，保存后立即生效，无需重启</p>

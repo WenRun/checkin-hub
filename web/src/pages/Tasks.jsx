@@ -300,13 +300,13 @@ export default function Tasks() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 p-6">
-      <div className="flex items-center justify-between">
+    <div className="mx-auto max-w-6xl space-y-4 p-4 md:space-y-6 md:p-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-zinc-100">任务管理</h2>
           <p className="mt-0.5 text-sm text-zinc-500">配置签到任务的执行计划，查看每次执行结果</p>
         </div>
-        <Button variant="primary" onClick={() => { setEditing(null); setFormOpen(true); }}>
+        <Button variant="primary" onClick={() => { setEditing(null); setFormOpen(true); }} className="shrink-0">
           <Plus size={15} /> 新建任务
         </Button>
       </div>

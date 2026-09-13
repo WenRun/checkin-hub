@@ -38,7 +38,7 @@ export default function Dashboard({ onNavigate }) {
   if (!data) return <Empty text="加载中…" />;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 p-6">
+    <div className="mx-auto max-w-6xl space-y-4 p-4 md:space-y-6 md:p-6">
       <div>
         <h2 className="text-lg font-semibold text-zinc-100">总览</h2>
         <p className="mt-0.5 text-sm text-zinc-500">签到任务运行状态一览</p>

@@ -25,13 +25,13 @@ export default function Records() {
   }, [load]);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 p-6">
+    <div className="mx-auto max-w-6xl space-y-4 p-4 md:space-y-6 md:p-6">
       <div className="flex items-end justify-between">
         <div>
           <h2 className="text-lg font-semibold text-zinc-100">执行记录</h2>
           <p className="mt-0.5 text-sm text-zinc-500">所有任务的自动 / 手动执行明细（保留最近 5000 条）</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Select value={taskId} onChange={setTaskId} className="w-52">
             <option value="">全部任务</option>
             {tasks.map((t) => (

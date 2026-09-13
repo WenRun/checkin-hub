@@ -31,7 +31,7 @@ export function Button({ variant = 'default', size = 'md', className = '', ...pr
   const sizes = { sm: 'h-7 px-2.5 text-xs', md: 'h-9 px-4 text-sm' };
   return (
     <button
-      className={`inline-flex items-center justify-center gap-1.5 rounded-lg border font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${variants[variant]} ${sizes[size]} ${className}`}
+      className={`inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${variants[variant]} ${sizes[size]} ${className}`}
       {...props}
     />
   );

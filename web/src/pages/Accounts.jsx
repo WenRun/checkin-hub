@@ -435,13 +435,13 @@ export default function Accounts() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 p-6">
-      <div className="flex items-end justify-between">
+    <div className="mx-auto max-w-6xl space-y-4 p-4 md:space-y-6 md:p-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-zinc-100">账号管理</h2>
           <p className="mt-0.5 text-sm text-zinc-500">按平台管理各站点的账号凭据，token 只保存在本机</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {caps.importLocal && (
             <Button onClick={importLocal} disabled={busyId === 'import'}>
               <Download size={15} /> {busyId === 'import' ? '导入中…' : '从本机导入'}
